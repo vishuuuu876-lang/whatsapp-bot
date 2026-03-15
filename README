@@ -1,14 +1,80 @@
-# WhatsApp Bot
+WhatsApp Bot
 
-Simple WhatsApp bot built with Baileys.
+A simple modular WhatsApp bot built with whatsapp-web.js.
+This bot supports plugin-based commands, so new features can be added easily.
 
-## Commands
+---
 
-.ping
+Features
 
-## Run locally
+- QR login system
+- Plugin-based commands
+- Easy deployment
+- Works on Railway / VPS / Local machine
+- Easily forkable from GitHub
+
+---
+
+Commands
+
+Command| Description
+".calculator 5+5"| Calculate math expressions
+".weather City"| Get weather information
+
+Example:
+
+.calculator 10*5
+.weather Kochi
+
+---
+
+Installation
+
+Clone the repository:
+
+git clone https://github.com/yourusername/whatsapp-bot
+cd whatsapp-bot
+
+Install dependencies:
 
 npm install
+
+Run the bot:
+
 node index.js
 
-Scan the QR code to login.
+Scan the QR code with WhatsApp Linked Devices.
+
+---
+
+Plugin System
+
+Commands are stored inside the plugins folder.
+
+Example structure:
+
+plugins
+│
+├── calculator.js
+├── weather.js
+
+Adding new commands is easy:
+
+plugins/newcommand.js
+
+---
+
+Deployment
+
+You can deploy this bot on:
+
+- Railway
+- Render
+- VPS
+- Local machine
+
+---
+
+License
+
+MIT License
