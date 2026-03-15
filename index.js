@@ -14,20 +14,20 @@ browser: ["Ubuntu","Chrome","20.0.04"]
 
 sock.ev.on("creds.update", saveCreds)
 
-sock.ev.on("connection.update", ({connection, qr}) => {
+sock.ev.on("connection.update", ({ connection, qr }) => {
 
 if(qr){
-console.log("Scan QR with WhatsApp")
+console.log("SCAN THIS QR CODE:")
 qrcode.generate(qr,{small:true})
 }
 
 if(connection === "open"){
-console.log("Bot Connected")
+console.log("✅ WhatsApp Bot Connected")
 }
 
 })
 
-sock.ev.on("messages.upsert", async ({messages}) => {
+sock.ev.on("messages.upsert", async ({ messages }) => {
 
 const msg = messages[0]
 
@@ -45,4 +45,5 @@ await sock.sendMessage(msg.key.remoteJid,{text:"🏓 Pong!"})
 
 }
 
+console.log("Starting WhatsApp bot...")
 startBot()
