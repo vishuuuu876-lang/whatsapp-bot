@@ -1,64 +1,37 @@
-import makeWASocket, { useMultiFileAuthState, DisconnectReason } from "@whiskeysockets/baileys"
-import pino from "pino"
+import pkg from 'whatsapp-web.js'
+import qrcode from 'qrcode-terminal'
 
-async function startBot(){
+const { Client, LocalAuth } = pkg
 
-console.log("Starting WhatsApp bot...")
-
-const { state, saveCreds } = await useMultiFileAuthState("auth")
-
-const sock = makeWASocket({
-auth: state,
-logger: pino({ level: "silent" }),
-browser: ["RailwayBot","Chrome","1.0"]
+const client = new Client({
+authStrategy: new LocalAuth()
 })
 
-sock.ev.on("creds.update", saveCreds)
+client.on('qr', qr => {
+console.log("Scan this QR with WhatsApp:")
+qrcode.generate(qr, { small: true })
+})
 
-sock.ev.on("connection.update", (update) => {
-
-const { connection, qr, lastDisconnect } = update
-
-if(qr){
-console.log("SCAN QR:")
-console.log("https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=" + qr)
-}
-
-if(connection === "open"){
+client.on('ready', () => {
 console.log("✅ WhatsApp Bot Connected")
+})
+
+client.on('message', async message => {
+
+if(message.body === ".ping"){
+message.reply("🏓 Pong!")
 }
 
-if(connection === "close"){
+if(message.body === ".menu"){
+message.reply(
+`🤖 Bot Commands
 
-const shouldReconnect =
-lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut
-
-console.log("Connection closed. Reconnecting:", shouldReconnect)
-
-if(shouldReconnect){
-startBot()
-}
-
+.ping
+.menu
+`
+)
 }
 
 })
 
-sock.ev.on("messages.upsert", async ({ messages }) => {
-
-const msg = messages[0]
-
-if(!msg.message || msg.key.fromMe) return
-
-const text =
-msg.message.conversation ||
-msg.message.extendedTextMessage?.text
-
-if(text === ".ping"){
-await sock.sendMessage(msg.key.remoteJid,{ text: "🏓 Pong!" })
-}
-
-})
-
-}
-
-startBot()
+client.initialize()
