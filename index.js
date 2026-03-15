@@ -17,8 +17,8 @@ sock.ev.on("creds.update", saveCreds)
 sock.ev.on("connection.update", ({ connection, qr }) => {
 
 if(qr){
-console.log("SCAN THIS QR CODE:")
-qrcode.generate(qr,{small:true})
+console.log("SCAN THIS QR:")
+console.log("https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=" + qr)
 }
 
 if(connection === "open"){
