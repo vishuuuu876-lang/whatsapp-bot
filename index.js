@@ -16,8 +16,8 @@ args: [
 
 client.on('qr', qr => {
 console.log("Scan this QR with WhatsApp:")
-qrcode.generate(qr, { small: true })
-})
+console.log("QR LINK:")
+console.log("https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=" + qr)
 
 client.on('ready', () => {
 console.log("✅ WhatsApp Bot Connected")
