@@ -4,9 +4,11 @@ const { Client, LocalAuth } = pkg
 console.log("Starting WhatsApp bot...")
 
 const client = new Client({
-    authStrategy: new LocalAuth(),
-    puppeteer: {
-        headless: true,
+  authStrategy: new LocalAuth({
+    clientId: "main-session"
+  }),
+  puppeteer: {
+    headless: true,
         args: [
             "--no-sandbox",
             "--disable-setuid-sandbox",
