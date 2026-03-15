@@ -1,8 +1,6 @@
 import pkg from "whatsapp-web.js"
 const { Client, LocalAuth } = pkg
 
-import fs from "fs"
-
 console.log("Starting WhatsApp bot...")
 
 const client = new Client({
