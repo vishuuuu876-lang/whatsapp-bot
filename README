@@ -1,0 +1,14 @@
+# WhatsApp Bot
+
+Simple WhatsApp bot built with Baileys.
+
+## Commands
+
+.ping
+
+## Run locally
+
+npm install
+node index.js
+
+Scan the QR code to login.
