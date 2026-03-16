@@ -55,10 +55,6 @@ if(message.fromMe) return
 if(!message.body) return
 
 // GAME INPUT (messages without ".")
-if(!message.body.startsWith(".")){
-
-try{
-import { games } from "./games/engine.js"
 
 if(!message.body.startsWith(".")){
 
@@ -78,13 +74,7 @@ console.error("Game input error:",err)
 
 return
 }
-}catch(err){
-console.error("Game input error:",err)
-}
-
-return
-}
-
+  
 /* COMMAND PARSER */
 
 const args = message.body.slice(1).trim().split(/ +/)
