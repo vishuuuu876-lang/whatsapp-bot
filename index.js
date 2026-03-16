@@ -58,8 +58,26 @@ if(!message.body) return
 if(!message.body.startsWith(".")){
 
 try{
-const game = await import("./games/input.js")
-await game.default(client,message)
+import { games } from "./games/engine.js"
+
+if(!message.body.startsWith(".")){
+
+const chat = message.from
+const game = games[chat]
+
+if(!game) return
+
+try{
+
+const plugin = await import(`./plugins/${game.type}.js`)
+await plugin.default(client,message,[])
+
+}catch(err){
+console.error("Game input error:",err)
+}
+
+return
+}
 }catch(err){
 console.error("Game input error:",err)
 }
