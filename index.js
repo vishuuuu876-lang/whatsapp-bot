@@ -93,11 +93,7 @@ const players = getPlayers(chat)
 if(players.length === 0)
 return message.reply("No players")
 
-return message.reply(
-`👥 Players:
-
-${players.join("\n")}`
-)
+return message.reply(`👥 Players:\n\n${players.join("\n")}`)
 }
 
 if(command === "status"){
@@ -118,18 +114,19 @@ return message.reply(
 
 /* PLUGIN SYSTEM */
 
+
 try {
 
 const plugin = await import(`./plugins/${command}.js`)
-
-plugin.default(client,message,args)
+await plugin.default(client, message, args)
 
 } catch (err) {
 
-message.reply("❌ Command not found")
-
+if(err.code === "ERR_MODULE_NOT_FOUND"){
+return message.reply("❌ Command not found")
 }
 
-})
+console.error("Plugin error:", err)
+message.reply("⚠️ Command error")
 
-client.initialize()
+}
