@@ -114,7 +114,6 @@ return message.reply(
 
 /* PLUGIN SYSTEM */
 
-
 try {
 
 const plugin = await import(`./plugins/${command}.js`)
@@ -122,7 +121,7 @@ await plugin.default(client, message, args)
 
 } catch (err) {
 
-if(err.code === "ERR_MODULE_NOT_FOUND"){
+if (err.code === "ERR_MODULE_NOT_FOUND") {
 return message.reply("❌ Command not found")
 }
 
@@ -130,3 +129,7 @@ console.error("Plugin error:", err)
 message.reply("⚠️ Command error")
 
 }
+
+})   // closes client.on("message")
+
+client.initialize() 
