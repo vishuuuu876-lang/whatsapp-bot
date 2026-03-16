@@ -51,7 +51,15 @@ console.log("✅ WhatsApp Bot Connected")
 
 client.on("message", async (message) => {
 
-if(!message.body.startsWith(".")) return
+if(!message.body.startsWith(".")){
+
+try{
+const game = await import("./games/input.js")
+return game.default(client,message)
+}catch{}
+
+return
+}
 
 const args = message.body.slice(1).trim().split(/ +/)
 const command = args.shift().toLowerCase()
