@@ -48,8 +48,10 @@ console.log("✅ WhatsApp Bot Connected")
 })
 
 /* MESSAGE HANDLER */
-
 client.on("message", async (message) => {
+
+if(message.fromMe) return
+if(!message.body) return
 
 if(!message.body.startsWith(".")){
 
@@ -57,17 +59,11 @@ try{
 const game = await import("./games/input.js")
 await game.default(client,message)
 }catch(err){
-console.log("Game input error:",err)
+console.error("Game input error:",err)
 }
 
 return
 }
-
-const args = message.body.slice(1).trim().split(/ +/)
-const command = args.shift().toLowerCase()
-
-const chat = message.from
-const sender = message.author || message.from
 
 /* GAME ENGINE COMMANDS */
 
