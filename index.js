@@ -48,11 +48,13 @@ console.log("✅ WhatsApp Bot Connected")
 })
 
 /* MESSAGE HANDLER */
+
 client.on("message", async (message) => {
 
 if(message.fromMe) return
 if(!message.body) return
 
+// GAME INPUT (messages without ".")
 if(!message.body.startsWith(".")){
 
 try{
@@ -64,6 +66,14 @@ console.error("Game input error:",err)
 
 return
 }
+
+/* COMMAND PARSER */
+
+const args = message.body.slice(1).trim().split(/ +/)
+const command = args.shift().toLowerCase()
+
+const chat = message.from
+const sender = message.author || message.from
 
 /* GAME ENGINE COMMANDS */
 
@@ -117,19 +127,19 @@ return message.reply(
 try {
 
 const plugin = await import(`./plugins/${command}.js`)
-await plugin.default(client, message, args)
+await plugin.default(client,message,args)
 
 } catch (err) {
 
-if (err.code === "ERR_MODULE_NOT_FOUND") {
+if(err.code === "ERR_MODULE_NOT_FOUND"){
 return message.reply("❌ Command not found")
 }
 
-console.error("Plugin error:", err)
+console.error(err)
 message.reply("⚠️ Command error")
 
 }
 
-})   // closes client.on("message")
+})
 
-client.initialize() 
+client.initialize()
