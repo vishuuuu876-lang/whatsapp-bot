@@ -1,34 +1,39 @@
 export default async function (client, message, args) {
 
-    if (!args.length) {
-        message.reply("🔎 Usage: .search topic\nExample: .search WhatsApp")
-        return
-    }
+if (!args.length) {
+return message.reply(
+"🔎 Usage: .search topic\nExample: .search WhatsApp"
+)
+}
 
-    const query = args.join(" ")
+const query = args.join(" ")
 
-    try {
+try {
 
-        const res = await fetch(
-            `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`
-        )
+const res = await fetch(
+`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`
+)
 
-        const data = await res.json()
+const data = await res.json()
 
-        if (data.extract) {
+if (!data.extract)
+return message.reply("❌ No information found")
 
-            message.reply(`📚 *${data.title}*\n\n${data.extract}`)
+const summary = data.extract.slice(0,700)
 
-        } else {
+await message.reply(
+`📚 *${data.title}*
 
-            message.reply("❌ No information found")
+${summary}...
 
-        }
+🔗 ${data.content_urls.desktop.page}`
+)
 
-    } catch (err) {
+}catch(err){
 
-        message.reply("⚠️ Error fetching information")
+console.error(err)
+message.reply("⚠️ Error fetching information")
 
-    }
+}
 
 }
