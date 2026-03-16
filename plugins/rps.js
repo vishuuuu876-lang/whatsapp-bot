@@ -1,6 +1,6 @@
-import { games,createGame,joinGame,startGame,endGame } from "../games/engine.js"
+import { games, createGame, joinGame, startGame, endGame } from "../games/engine.js"
 
-export default async function(client,message,args){
+export default async function(client, message, args){
 
 const chat = message.from
 const sender = message.author || message.from
@@ -10,105 +10,126 @@ if(!games[chat]){
 
 createGame(chat,"rps",sender,mode)
 
-if(mode==="multi"){
-message.reply(`✊ RPS Lobby
+if(mode === "multi"){
+return message.reply(
+`✊ Rock Paper Scissors Lobby
 
 .join to join
-.start to play`)
-return
+.start to begin (2 players max)`
+)
 }
 
-startGame(chat)
-
+startGame(chat, sender)
 }
 
 let game = games[chat]
 
-if(message.body===".join"){
-joinGame(chat,sender)
-message.reply(`Player joined (${game.players.length})`)
-return
+if(!game.data) game.data = {}
+
+/* JOIN */
+
+if(message.body === ".join"){
+
+if(game.players.length >= 2)
+return message.reply("❌ RPS only supports 2 players")
+
+joinGame(chat, sender)
+
+return message.reply(`Player joined (${game.players.length}/2)`)
 }
 
-if(message.body===".start"){
+/* START */
 
-if(sender!==game.host) return
+if(message.body === ".start"){
 
-startGame(chat)
+if(sender !== game.host)
+return message.reply("Only the host can start")
 
-message.reply(`✊ Rock Paper Scissors
+if(game.mode === "multi" && game.players.length < 2)
+return message.reply("Need 2 players")
+
+startGame(chat, sender)
+
+return message.reply(
+`✊ Rock Paper Scissors
 
 Send:
 rock
 paper
-scissors`)
-return
+scissors`
+)
 }
+
+/* GAME INPUT */
 
 if(game.started){
 
-if(game.mode==="multi" && !game.players.includes(sender)) return
+if(game.mode === "multi" && !game.players.includes(sender))
+return
 
-let choice=message.body.toLowerCase()
-
-const options=["rock","paper","scissors"]
+const options = ["rock","paper","scissors"]
+let choice = message.body.toLowerCase()
 
 if(!options.includes(choice)) return
 
-if(game.mode==="single"){
+/* SINGLE PLAYER */
 
-let bot=options[Math.floor(Math.random()*3)]
+if(game.mode === "single"){
 
-if(choice===bot){
-message.reply(`Draw!\nYou:${choice}\nBot:${bot}`)
+let bot = options[Math.floor(Math.random()*3)]
+
+if(choice === bot){
+await message.reply(`🤝 Draw!\nYou: ${choice}\nBot: ${bot}`)
 }
 else if(
-(choice==="rock" && bot==="scissors")||
-(choice==="paper" && bot==="rock")||
-(choice==="scissors" && bot==="paper")
+(choice === "rock" && bot === "scissors") ||
+(choice === "paper" && bot === "rock") ||
+(choice === "scissors" && bot === "paper")
 ){
-message.reply(`🎉 You win!\nBot:${bot}`)
+await message.reply(`🎉 You win!\nBot chose: ${bot}`)
 }
 else{
-message.reply(`Bot wins!\nBot:${bot}`)
+await message.reply(`🤖 Bot wins!\nBot chose: ${bot}`)
 }
 
 endGame(chat)
+return
+}
 
-}else{
+/* MULTIPLAYER */
 
-game.data[sender]=choice
+game.data[sender] = choice
 
-if(Object.keys(game.data).length===2){
+if(Object.keys(game.data).length === 2){
 
-let players=Object.keys(game.data)
+let players = Object.keys(game.data)
 
-let p1=game.data[players[0]]
-let p2=game.data[players[1]]
+let p1 = game.data[players[0]]
+let p2 = game.data[players[1]]
 
-let result="Draw"
+let result = "Draw"
 
 if(
-(p1==="rock" && p2==="scissors")||
-(p1==="paper" && p2==="rock")||
+(p1==="rock" && p2==="scissors") ||
+(p1==="paper" && p2==="rock") ||
 (p1==="scissors" && p2==="paper")
 ){
-result=`${players[0].split("@")[0]} wins`
+result = `${players[0].split("@")[0]} wins`
 }
-else if(p1!==p2){
-result=`${players[1].split("@")[0]} wins`
+else if(p1 !== p2){
+result = `${players[1].split("@")[0]} wins`
 }
 
-message.reply(`✊ RPS Result
+await message.reply(
+`✊ RPS Result
 
 ${players[0].split("@")[0]}: ${p1}
 ${players[1].split("@")[0]}: ${p2}
 
-${result}`)
+🏆 ${result}`
+)
 
 endGame(chat)
-
-}
 
 }
 
