@@ -1,41 +1,70 @@
-let scrambleGame = {}
+import { games,createGame,joinGame,startGame,endGame } from "../games/engine.js"
 
-export default async function(client, message){
+export default async function(client,message,args){
 
 const chat = message.from
+const sender = message.author || message.from
+const mode = args[0] || "single"
 
-const words = ["javascript","whatsapp","programming","internet","telegram"]
+if(!games[chat]){
 
-if(!scrambleGame[chat]){
+createGame(chat,"scramble",sender,mode)
 
-let word = words[Math.floor(Math.random()*words.length)]
+if(mode==="multi"){
+message.reply(`🔤 Scramble Lobby
 
-let scrambled = word
+.join to join
+.start to begin`)
+return
+}
+
+startGame(chat)
+}
+
+let game = games[chat]
+
+if(message.body===".join"){
+joinGame(chat,sender)
+message.reply(`Player joined (${game.players.length})`)
+return
+}
+
+if(message.body===".start"){
+
+if(sender!==game.host) return
+
+startGame(chat)
+
+const res = await fetch("https://random-word-api.herokuapp.com/word")
+const data = await res.json()
+
+let word=data[0]
+
+let scrambled=word
 .split("")
 .sort(()=>Math.random()-0.5)
 .join("")
 
-scrambleGame[chat] = word
+game.data.word=word
 
-message.reply(`🔤 Unscramble this word:
+message.reply(`🔤 Unscramble
 
 ${scrambled}`)
 
 return
 }
 
-let guess = message.body.toLowerCase()
+if(game.started){
 
-if(guess === scrambleGame[chat]){
+if(game.mode==="multi" && !game.players.includes(sender)) return
 
-message.reply("🎉 Correct word!")
+let guess=message.body.toLowerCase()
 
-}else{
-
-message.reply(`❌ Wrong! Word was: ${scrambleGame[chat]}`)
-
+if(guess===game.data.word){
+message.reply(`🎉 ${sender.split("@")[0]} solved it!`)
+endGame(chat)
 }
 
-delete scrambleGame[chat]
+}
 
 }
