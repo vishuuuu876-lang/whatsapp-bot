@@ -33,6 +33,9 @@ if(game.started) return "already-started"
 if(game.players.includes(player))
 return "already-joined"
 
+if(game.type === "tictactoe" && game.players.length >= 2)
+return "player-limit"
+
 game.players.push(player)
 
 return "joined"
