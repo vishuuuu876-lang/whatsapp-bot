@@ -55,8 +55,10 @@ if(!message.body.startsWith(".")){
 
 try{
 const game = await import("./games/input.js")
-return game.default(client,message)
-}catch{}
+await game.default(client,message)
+}catch(err){
+console.log("Game input error:",err)
+}
 
 return
 }
