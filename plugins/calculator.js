@@ -1,22 +1,32 @@
 export default async function (client, message, args) {
 
-    if (args.length === 0) {
-        message.reply("Usage: .calculator 5+5")
-        return
-    }
+if(args.length === 0){
+message.reply("Usage: .calculator 5+5")
+return
+}
 
-    const expression = args.join(" ")
+const expression = args.join("")
 
-    try {
+/* allow only numbers and math operators */
 
-        const result = eval(expression)
+if(!/^[0-9+\-*/().]+$/.test(expression)){
+return message.reply("❌ Only numbers and math operators allowed")
+}
 
-        message.reply(`🧮 Calculator\n\n${expression} = ${result}`)
+try{
 
-    } catch (err) {
+const result = Function(`"use strict"; return (${expression})`)()
 
-        message.reply("❌ Invalid calculation")
+message.reply(
+`🧮 Calculator
 
-    }
+${expression} = ${result}`
+)
+
+}catch{
+
+message.reply("❌ Invalid calculation")
+
+}
 
 }
