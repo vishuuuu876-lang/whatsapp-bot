@@ -12,18 +12,28 @@ const dares = [
 "Send a voice message saying hello"
 ]
 
-const type = Math.random()>0.5 ? "truth" : "dare"
+const type = Math.random() > 0.5 ? "truth" : "dare"
 
-if(type==="truth"){
-const t = truths[Math.floor(Math.random()*truths.length)]
-message.reply(`😈 Truth:
+if(type === "truth"){
 
-${t}`)
+const truth = truths[Math.floor(Math.random() * truths.length)]
+
+await message.reply(
+`😈 Truth
+
+${truth}`
+)
+
 }else{
-const d = dares[Math.floor(Math.random()*dares.length)]
-message.reply(`🔥 Dare:
 
-${d}`)
+const dare = dares[Math.floor(Math.random() * dares.length)]
+
+await message.reply(
+`🔥 Dare
+
+${dare}`
+)
+
 }
 
 }
