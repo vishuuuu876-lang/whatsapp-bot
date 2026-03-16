@@ -1,6 +1,6 @@
-import { games,createGame,joinGame,startGame,endGame } from "../games/engine.js"
+import { games, createGame, joinGame, startGame, endGame } from "../games/engine.js"
 
-export default async function(client,message,args){
+export default async function(client, message, args){
 
 const chat = message.from
 const sender = message.author || message.from
@@ -10,59 +10,92 @@ if(!games[chat]){
 
 createGame(chat,"scramble",sender,mode)
 
-if(mode==="multi"){
-message.reply(`🔤 Scramble Lobby
+if(mode === "multi"){
+return message.reply(
+`🔤 Word Scramble Lobby
 
 .join to join
-.start to begin`)
-return
+.start to begin`
+)
 }
 
-startGame(chat)
+startGame(chat, sender)
 }
 
 let game = games[chat]
 
-if(message.body===".join"){
-joinGame(chat,sender)
-message.reply(`Player joined (${game.players.length})`)
-return
+if(!game.data) game.data = {}
+
+/* JOIN */
+
+if(message.body === ".join"){
+joinGame(chat, sender)
+return message.reply(`Player joined (${game.players.length})`)
 }
 
-if(message.body===".start"){
+/* START */
 
-if(sender!==game.host) return
+if(message.body === ".start"){
 
-startGame(chat)
+if(sender !== game.host)
+return message.reply("Only the host can start")
+
+startGame(chat, sender)
+
+try{
 
 const res = await fetch("https://random-word-api.herokuapp.com/word")
 const data = await res.json()
 
-let word=data[0]
+let word = data[0]
 
-let scrambled=word
+let scrambled = word
 .split("")
 .sort(()=>Math.random()-0.5)
 .join("")
 
-game.data.word=word
+/* Prevent same word */
 
-message.reply(`🔤 Unscramble
+while(scrambled === word){
+scrambled = word
+.split("")
+.sort(()=>Math.random()-0.5)
+.join("")
+}
 
-${scrambled}`)
+game.data.word = word
+
+await message.reply(
+`🔤 Unscramble this word:
+
+${scrambled}`
+)
+
+}catch(err){
+
+await message.reply("❌ Failed to fetch word")
+
+}
 
 return
 }
 
+/* GAME INPUT */
+
 if(game.started){
 
-if(game.mode==="multi" && !game.players.includes(sender)) return
+if(game.mode === "multi" && !game.players.includes(sender)) return
 
-let guess=message.body.toLowerCase()
+let guess = message.body.toLowerCase()
 
-if(guess===game.data.word){
-message.reply(`🎉 ${sender.split("@")[0]} solved it!`)
+if(guess === game.data.word){
+
+await message.reply(
+`🎉 ${sender.split("@")[0]} solved it!\nWord: ${game.data.word}`
+)
+
 endGame(chat)
+
 }
 
 }
