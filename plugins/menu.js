@@ -8,7 +8,6 @@ const menu = `
 🌐 Utility
 .weather city
 .translate lang text
-.wikipedia topic
 .search topic
 .calculator 5+5
 
@@ -17,10 +16,9 @@ const menu = `
 .scramble
 .rps
 .tictactoe
-.truth
-.dare
 .dice
 .guess
+.tod
 
 🎵 Media
 .yt search
