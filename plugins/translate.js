@@ -3,25 +3,35 @@ import axios from "axios"
 export default async function(client, message, args){
 
 let text = ""
+let lang = args[0]
+
+/* TRANSLATE REPLIED MESSAGE */
 
 if(message.hasQuotedMsg){
 
 const quoted = await message.getQuotedMessage()
+
+if(!quoted.body)
+return message.reply("Reply to a text message")
+
 text = quoted.body
 
-if(args.length === 0)
+if(!lang)
 return message.reply("Example:\n.translate hi")
 
-}else{
+}
+
+/* NORMAL TRANSLATION */
+
+else{
 
 if(args.length < 2)
 return message.reply("Example:\n.translate hi hello")
 
+lang = args[0]
 text = args.slice(1).join(" ")
 
 }
-
-const lang = args[0]
 
 try{
 
@@ -29,15 +39,18 @@ const res = await axios.get(
 `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=auto|${lang}`
 )
 
-message.reply(
+const translated = res.data.responseData.translatedText
+
+await message.reply(
 `🌍 Translation (${lang})
 
-${res.data.responseData.translatedText}`
+${translated}`
 )
 
-}catch{
+}catch(err){
 
-message.reply("Translation failed")
+console.error(err)
+message.reply("❌ Translation failed")
 
 }
 
