@@ -2,6 +2,7 @@ import pkg from "whatsapp-web.js"
 const { Client, LocalAuth } = pkg
 
 import {
+games,
 joinGame,
 leaveGame,
 startGame,
