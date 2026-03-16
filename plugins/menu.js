@@ -1,25 +1,46 @@
 export default async function (client, message) {
 
 const menu = `
-🤖 *Bot Commands*
+🤖 *WhatsApp Bot Menu*
 
-🔎 Utility
-.search topic
+━━━━━━━━━━━━━━
+
+🌐 Utility
 .weather city
+.translate lang text
+.wikipedia topic
+.search topic
 .calculator 5+5
 
 🎮 Games
-.guess number
-.dice
-.rps rock
 .quiz
 .scramble
+.rps
 .tictactoe
-.tod
+.truth
+.dare
+.dice
+.guess
 
-⚙️ Other
+🎵 Media
+.yt search
+.music song
+.sticker
+.image keyword
+
+😂 Fun
+.meme
+
+⚙️ System
 .ping
 .menu
+.join
+.leave
+.start
+.players
+.status
+
+━━━━━━━━━━━━━━
 `
 
 message.reply(menu)
