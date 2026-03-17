@@ -35,12 +35,14 @@ return message.reply(`Player joined (${game.players.length})`)
 
 /* START */
 
-if(message.body === ".start"){
+if(message.body.toLowerCase().startsWith(".start")){
 
 if(sender !== game.host)
 return message.reply("Only the host can start")
 
-startGame(chat, sender)
+const resStart = startGame(chat, sender)
+if(resStart !== "started")
+return message.reply("❌ Cannot start game")
 
 try{
 
@@ -49,32 +51,24 @@ const data = await res.json()
 
 let word = data[0]
 
+// safer scramble
 let scrambled = word
-.split("")
-.sort(()=>Math.random()-0.5)
-.join("")
-
-/* Prevent same word */
-
-while(scrambled === word){
-scrambled = word
-.split("")
-.sort(()=>Math.random()-0.5)
-.join("")
+for(let i=0;i<5;i++){
+let temp = word.split("").sort(()=>Math.random()-0.5).join("")
+if(temp !== word){
+scrambled = temp
+break
+}
 }
 
 game.data.word = word
 
-await message.reply(
-`🔤 Unscramble this word:
+await message.reply(`🔤 Unscramble this word:
 
-${scrambled}`
-)
+${scrambled}`)
 
-}catch(err){
-
+}catch{
 await message.reply("❌ Failed to fetch word")
-
 }
 
 return
