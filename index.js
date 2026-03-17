@@ -55,14 +55,12 @@ client.on("message", async (message) => {
 if(message.fromMe) return
 if(!message.body) return
 
-// GAME INPUT (messages without ".")
-
-if(!message.body.startsWith(".")){
+// GAME INPUT (if a game is running)
 
 const chat = message.from
 const game = games[chat]
 
-if(!game) return
+if(game){
 
 try{
 
