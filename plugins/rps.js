@@ -2,10 +2,11 @@ import { games, createGame, joinGame, startGame, endGame } from "../games/engine
 
 export default async function(client, message, args){
 
+const input = message.body.toLowerCase().trim()  // ✅ ADD HERE
+
 const chat = message.from
 const sender = message.author || message.from
 const mode = args[0] || "single"
-
 if(!games[chat]){
 
 createGame(chat,"rps",sender,mode)
@@ -20,15 +21,19 @@ return message.reply(
 }
 
 startGame(chat, sender)
+
+return message.reply(
+`✊ Rock Paper Scissors
+
+Send:
+rock
+paper
+scissors`
+)
 }
-
-let game = games[chat]
-
-if(!game.data) game.data = {}
-
 /* JOIN */
 
-if(message.body === ".join"){
+if(input === ".join"){
 
 if(game.players.length >= 2)
 return message.reply("❌ RPS only supports 2 players")
@@ -40,7 +45,7 @@ return message.reply(`Player joined (${game.players.length}/2)`)
 
 /* START */
 
-if(message.body === ".start"){
+if(input === ".start"){
 
 if(sender !== game.host)
 return message.reply("Only the host can start")
@@ -68,9 +73,11 @@ if(game.mode === "multi" && !game.players.includes(sender))
 return
 
 const options = ["rock","paper","scissors"]
-let choice = message.body.toLowerCase()
+let choice = input
 
-if(!options.includes(choice)) return
+if(!options.includes(choice)){
+   return message.reply("❌ Send: rock / paper / scissors")
+}
 
 /* SINGLE PLAYER */
 
@@ -129,6 +136,7 @@ ${players[1].split("@")[0]}: ${p2}
 🏆 ${result}`
 )
 
+game.data = {}
 endGame(chat)
 
 }
