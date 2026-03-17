@@ -1,34 +1,23 @@
-import { games, createGame, startGame, endGame } from "../games/engine.js"
+// after game creation block
 
-/* WIN CHECK FUNCTION */
-function checkWinner(board, player){
-const winPatterns = [
-[0,1,2],[3,4,5],[6,7,8],
-[0,3,6],[1,4,7],[2,5,8],
-[0,4,8],[2,4,6]
-]
+let game = games[chat]
 
-return winPatterns.some(pattern =>
-pattern.every(i => board[i] === player)
-)
+/* INPUT (ALWAYS FIRST) */
+const input = message.body.toLowerCase().trim()
+
+/* RESTART COMMAND */
+if(input === ".restart"){
+
+if(!game){
+return message.reply("❌ No game to restart")
 }
 
-export default async function(client, message, args){
-
-const chat = message.from
-const sender = message.author || message.from
-
-/* START GAME */
-if(!games[chat]){
-
-createGame(chat,"tictactoe",sender,"single")
-startGame(chat,sender)
-
-games[chat].data = {
+/* reset board */
+game.data = {
 board:["1","2","3","4","5","6","7","8","9"]
 }
 
-return message.reply(`🎮 Tic Tac Toe
+return message.reply(`🔄 Game restarted!
 
 1 | 2 | 3
 ---------
@@ -39,12 +28,13 @@ return message.reply(`🎮 Tic Tac Toe
 Send a number (1-9)`)
 }
 
-let game = games[chat]
-
+/* STOP IF NO GAME DATA */
 if(!game.data) return
 
-let move = parseInt(message.body)
+/* PARSE MOVE */
+const move = parseInt(input)
 
+/* VALIDATION */
 if(isNaN(move) || move < 1 || move > 9){
 return message.reply("⚠️ Send a number between 1-9")
 }
@@ -130,5 +120,3 @@ ${board[3]} | ${board[4]} | ${board[5]}
 ---------
 ${board[6]} | ${board[7]} | ${board[8]}`
 )
-
-}
