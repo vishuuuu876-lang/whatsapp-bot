@@ -1,97 +1,98 @@
 import { games, createGame, joinGame, startGame, endGame } from "../games/engine.js"
 
-export default async function(client, message, args){
+export default async function (client, message, args) {
 
-const chat = message.from
-const sender = message.author || message.from
-const mode = args[0] || "single"
+    const input = message.body.toLowerCase().trim()
+    const chat = message.from
+    const sender = message.author || message.from
+    const mode = args[0] || "single"
 
-if(!games[chat]){
+    /* CREATE GAME */
+    if (!games[chat]) {
 
-createGame(chat,"scramble",sender,mode)
+        createGame(chat, "scramble", sender, mode)
 
-if(mode === "multi"){
-return message.reply(
-`🔤 Word Scramble Lobby
+        if (mode === "multi") {
+            return message.reply(
+                `🔤 Word Scramble Lobby\n\n.join to join\n.start to begin`
+            )
+        }
 
-.join to join
-.start to begin`
-)
-}
+        // fix: only call startGame once for single mode
+        startGame(chat, sender)
+    }
 
-startGame(chat, sender)
-}
+    let game = games[chat]
+    if (!game.data) game.data = {}
 
-let game = games[chat]
+    /* JOIN */
+    if (input === ".join") {
+        const result = joinGame(chat, sender)
+        if (result === "already-joined") return message.reply("⚠️ You already joined")
+        if (result === "player-limit") return message.reply("❌ Game is full")
+        return message.reply(`Player joined (${game.players.length})`)
+    }
 
-if(!game.data) game.data = {}
+    /* START */
+    if (input.startsWith(".start")) {
 
-/* JOIN */
+        if (sender !== game.host)
+            return message.reply("❌ Only the host can start")
 
-if(message.body === ".join"){
-joinGame(chat, sender)
-return message.reply(`Player joined (${game.players.length})`)
-}
+        if (game.mode === "multi") {
+            const result = startGame(chat, sender)
+            if (result !== "started") return message.reply("⚠️ Could not start game")
+        }
 
-/* START */
+        try {
+            const res = await fetch("https://random-word-api.herokuapp.com/word")
 
-if(message.body.toLowerCase().startsWith(".start")){
+            // fix: guard against non-ok API responses
+            if (!res.ok) throw new Error("API error")
 
-if(sender !== game.host)
-return message.reply("Only the host can start")
+            const data = await res.json()
+            const word = data[0]
 
-const resStart = startGame(chat, sender)
-if(resStart !== "started")
-return message.reply("❌ Cannot start game")
+            let scrambled = word
+            for (let i = 0; i < 10; i++) {
+                const temp = word.split("").sort(() => Math.random() - 0.5).join("")
+                if (temp !== word) {
+                    scrambled = temp
+                    break
+                }
+            }
 
-try{
+            game.data.word = word
 
-const res = await fetch("https://random-word-api.herokuapp.com/word")
-const data = await res.json()
+            await message.reply(`🔤 Unscramble this word:\n\n${scrambled}`)
 
-let word = data[0]
+        } catch {
+            // fix: end the game cleanly so it doesn't stay open with no word
+            endGame(chat)
+            await message.reply("❌ Failed to fetch word. Game cancelled, try again.")
+        }
 
-// safer scramble
-let scrambled = word
-for(let i=0;i<5;i++){
-let temp = word.split("").sort(()=>Math.random()-0.5).join("")
-if(temp !== word){
-scrambled = temp
-break
-}
-}
+        return
+    }
 
-game.data.word = word
+    /* GAME INPUT */
+    if (!game.started) return
 
-await message.reply(`🔤 Unscramble this word:
+    if (!game.data.word) {
+        return message.reply("⏳ Waiting for the game to start...")
+    }
 
-${scrambled}`)
+    if (game.mode === "multi" && !game.players.includes(sender)) return
 
-}catch{
-await message.reply("❌ Failed to fetch word")
-}
+    // fix: ignore commands during gameplay
+    if (input.startsWith(".")) return
 
-return
-}
+    const guess = input
 
-/* GAME INPUT */
-
-if(game.started){
-
-if(game.mode === "multi" && !game.players.includes(sender)) return
-
-let guess = message.body.toLowerCase()
-
-if(guess === game.data.word){
-
-await message.reply(
-`🎉 ${sender.split("@")[0]} solved it!\nWord: ${game.data.word}`
-)
-
-endGame(chat)
-
-}
-
-}
-
+    if (guess === game.data.word) {
+        await message.reply(
+            `🎉 ${sender.split("@")[0]} solved it!\nWord: ${game.data.word}`
+        )
+        endGame(chat)
+    }
 }
