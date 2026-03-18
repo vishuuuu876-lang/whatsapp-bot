@@ -1,14 +1,14 @@
-export default async function (client, message) {
+export default async function(client, message, args){
 
-const dice = Math.floor(Math.random() * 6) + 1
+    const dice = Math.floor(Math.random() * 6) + 1
 
-const diceEmoji = ["⚀","⚁","⚂","⚃","⚄","⚅"]
+    const diceEmoji = ["⚀","⚁","⚂","⚃","⚄","⚅"]
 
-await message.reply(
+    await message.reply(
 `🎲 Dice Roll
 
 Number: ${dice}
-Face: ${diceEmoji[dice-1]}`
-)
+Face: ${diceEmoji[dice - 1]}`
+    )
 
 }
