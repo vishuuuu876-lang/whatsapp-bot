@@ -160,6 +160,9 @@ return message.reply("❌ Command not found")
 
 console.error(err)
 message.reply("⚠️ Command error")
-}
 
-})
+}   // ✅ closes try-catch
+
+})  // ✅ closes client.on("message")
+
+client.initialize()  // ✅ bot start
