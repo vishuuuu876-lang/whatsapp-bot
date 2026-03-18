@@ -1,112 +1,129 @@
-import { games, createGame, startGame, endGame } from "../games/engine.js"
+import { games, createGame, joinGame, startGame, endGame } from "../games/engine.js"
 
-export default async function(client, message, args){
-
-const input = message.body.toLowerCase().trim()
-
-const chat = message.from
-const sender = message.author || message.from
-const mode = args[0] || "single"
-
-/* EXIT */
-if(input === ".exit"){
-endGame(chat)
-return message.reply("❌ Quiz ended")
+/* Fix: decode HTML entities from opentdb API (e.g. &amp; &#039;) */
+function decodeHTML(str) {
+    return str
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&#039;/g, "'")
+        .replace(/&ldquo;/g, "\u201C")
+        .replace(/&rdquo;/g, "\u201D")
 }
 
-/* RESTART */
-if(input === ".restart"){
-if(games[chat]){
-games[chat].data = {}
-return message.reply("🔄 Quiz restarted")
-}
-}
+export default async function (client, message, args) {
 
-/* CREATE GAME */
-if(!games[chat]){
+    const input = message.body.toLowerCase().trim()
+    const chat = message.from
+    const sender = message.author || message.from
+    const mode = args[0] || "single"
 
-createGame(chat,"quiz",sender,mode)
+    /* EXIT */
+    if (input === ".exit") {
+        endGame(chat)
+        return message.reply("❌ Quiz ended")
+    }
 
-if(mode==="multi"){
-return message.reply(
-`🧠 Quiz Lobby
+    /* RESTART */
+    if (input === ".restart") {
+        if (games[chat]) {
+            games[chat].data = {}
+            return message.reply("🔄 Quiz restarted — next message triggers a new question")
+        }
+    }
 
-.join to join
-.start to begin`
-)
-}
+    /* CREATE GAME */
+    if (!games[chat]) {
 
-startGame(chat,sender)
-}
+        createGame(chat, "quiz", sender, mode)
 
-let game = games[chat]
+        if (mode === "multi") {
+            return message.reply(
+                `🧠 Quiz Lobby\n\n.join to join\n.start to begin`
+            )
+        }
 
-if(!game.data) game.data = {}
+        startGame(chat, sender)
+    }
 
-/* ASK QUESTION */
-if(!game.data.answer){
+    let game = games[chat]
+    if (!game.data) game.data = {}
 
-try{
+    /* JOIN */
+    if (input === ".join") {
+        const result = joinGame(chat, sender)
+        if (result === "already-joined") return message.reply("⚠️ You already joined")
+        return message.reply(`Player joined (${game.players.length})`)
+    }
 
-const res = await fetch("https://opentdb.com/api.php?amount=1&type=multiple")
-const data = await res.json()
+    /* START (multi) */
+    if (input === ".start") {
+        if (sender !== game.host) return message.reply("❌ Only the host can start")
+        const result = startGame(chat, sender)
+        if (result !== "started") return message.reply("⚠️ Could not start")
+        // fall through to ask question below
+    }
 
-let q = data.results[0]
+    if (!game.started) return
 
-game.data.answer = q.correct_answer.toLowerCase()
+    /* IGNORE OTHER COMMANDS */
+    if (input.startsWith(".")) return
 
-let options = [...q.incorrect_answers, q.correct_answer]
-.sort(()=>Math.random()-0.5)
+    /* ASK QUESTION */
+    if (!game.data.answer) {
 
-await message.reply(
-`🧠 Quiz
+        try {
+            const res = await fetch("https://opentdb.com/api.php?amount=1&type=multiple")
 
-${q.question}
+            if (!res.ok) throw new Error("API error")
 
-${options.join("\n")}
+            const data = await res.json()
 
-━━━━━━━━━━━━━━
-▶ Commands:
-.restart
-.exit
-━━━━━━━━━━━━━━`
-)
+            // fix: guard against empty results from opentdb rate limiting
+            if (!data.results || data.results.length === 0) {
+                return message.reply("❌ Could not fetch question, try again in a moment")
+            }
 
-}catch(err){
-return message.reply("❌ Failed to fetch question")
-}
+            const q = data.results[0]
 
-return
-}
+            // fix: decode HTML entities so questions display cleanly in WhatsApp
+            const question = decodeHTML(q.question)
+            const correctAnswer = decodeHTML(q.correct_answer)
+            const incorrectAnswers = q.incorrect_answers.map(decodeHTML)
 
-/* IGNORE OTHER COMMANDS */
-if(input.startsWith(".")) return
+            game.data.answer = correctAnswer.toLowerCase()
 
-/* CHECK ANSWER */
-if(game.started){
+            const options = [...incorrectAnswers, correctAnswer]
+                .sort(() => Math.random() - 0.5)
+                .map(decodeHTML)
 
-if(game.mode==="multi" && !game.players.includes(sender)) return
+            await message.reply(
+                `🧠 Quiz\n\n${question}\n\n${options.join("\n")}\n\n━━━━━━━━━━━━━━\n▶ Commands:\n.restart\n.exit\n━━━━━━━━━━━━━━`
+            )
 
-let correct = game.data.answer
+        } catch (err) {
+            console.error("Quiz fetch error:", err)
+            return message.reply("❌ Failed to fetch question, try again")
+        }
 
-// ✅ SMART MATCH
-if(
-input === correct ||
-correct.includes(input) ||
-input.includes(correct)
-){
+        return
+    }
 
-await message.reply(
-`🎉 ${sender.split("@")[0]} got it right!`
-)
+    if (game.mode === "multi" && !game.players.includes(sender)) return
 
-// next question instead of ending
-game.data.answer = null
+    /* CHECK ANSWER */
+    const correct = game.data.answer
 
-}else{
-return message.reply("❌ Wrong answer, try again")
-}
+    // fix: exact match only — previous loose match accepted almost anything
+    if (input === correct) {
 
-}
+        await message.reply(`🎉 ${sender.split("@")[0]} got it right!\nAnswer: ${correct}`)
 
+        // next question
+        game.data.answer = null
+
+    } else {
+        return message.reply("❌ Wrong answer, try again")
+    }
 }
