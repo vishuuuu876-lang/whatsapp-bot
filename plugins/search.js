@@ -1,39 +1,62 @@
-export default async function (client, message, args) {
+export default async function(client, message, args){
 
-if (!args.length) {
-return message.reply(
-"🔎 Usage: .search topic\nExample: .search WhatsApp"
-)
-}
+    if(!args.length){
+        return message.reply(
+            "🔎 Usage: .search topic\nExample: .search WhatsApp"
+        )
+    }
 
-const query = args.join(" ")
+    const query = args.join(" ")
 
-try {
+    try{
 
-const res = await fetch(
-`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`
-)
+        const res = await fetch(
+            `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`,
+            { headers: { "User-Agent": "WhatsAppBot/1.0" } }
+        )
 
-const data = await res.json()
+        // fix: check HTTP status before parsing — 404 returns a JSON error object
+        if(!res.ok){
+            if(res.status === 404)
+                return message.reply(`❌ No Wikipedia article found for: ${query}\nTry a different search term`)
+            return message.reply("⚠️ Error fetching information, try again")
+        }
 
-if (!data.extract)
-return message.reply("❌ No information found")
+        const data = await res.json()
 
-const summary = data.extract.slice(0,700)
+        // fix: handle disambiguation pages — extract is present but unhelpful
+        if(data.type === "disambiguation"){
+            return message.reply(
+                `📚 "${data.title}" has multiple meanings.\n\nTry being more specific, e.g.:\n.search Mercury planet\n.search Mercury element`
+            )
+        }
 
-await message.reply(
-`📚 *${data.title}*
+        if(!data.extract)
+            return message.reply("❌ No information found")
 
-${summary}...
+        // fix: cut summary at last full stop within 700 chars — avoids mid-sentence cutoff
+        let summary = data.extract
+        if(summary.length > 700){
+            const trimmed = summary.slice(0, 700)
+            const lastDot = trimmed.lastIndexOf(".")
+            summary = lastDot > 400 ? trimmed.slice(0, lastDot + 1) : trimmed + "..."
+        }
 
-🔗 ${data.content_urls.desktop.page}`
-)
+        // fix: guard against missing content_urls before accessing nested property
+        const pageUrl = data.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(data.title)}`
 
-}catch(err){
+        await message.reply(
+`📚 ${data.title}
 
-console.error(err)
-message.reply("⚠️ Error fetching information")
+${summary}
 
-}
+🔗 ${pageUrl}`
+        )
+
+    }catch(err){
+
+        console.error("Search error:", err.message)
+        message.reply("⚠️ Error fetching information")
+    }
 
 }
