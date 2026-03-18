@@ -78,9 +78,7 @@ return
 
 const args = message.body.slice(1).trim().split(/ +/)
 const command = args.shift().toLowerCase()
-
-const chat = message.from
-const sender = message.author || message.from
+if(!message.body.startsWith(".")) return
 
 /* GAME ENGINE COMMANDS */
 
