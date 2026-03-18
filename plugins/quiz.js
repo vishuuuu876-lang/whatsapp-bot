@@ -8,8 +8,21 @@ const chat = message.from
 const sender = message.author || message.from
 const mode = args[0] || "single"
 
-/* CREATE GAME */
+/* EXIT */
+if(input === ".exit"){
+endGame(chat)
+return message.reply("❌ Quiz ended")
+}
 
+/* RESTART */
+if(input === ".restart"){
+if(games[chat]){
+games[chat].data = {}
+return message.reply("🔄 Quiz restarted")
+}
+}
+
+/* CREATE GAME */
 if(!games[chat]){
 
 createGame(chat,"quiz",sender,mode)
@@ -23,7 +36,6 @@ return message.reply(
 )
 }
 
-// ✅ start + immediately ask question
 startGame(chat,sender)
 }
 
@@ -31,8 +43,7 @@ let game = games[chat]
 
 if(!game.data) game.data = {}
 
-/* START QUESTION */
-
+/* ASK QUESTION */
 if(!game.data.answer){
 
 try{
@@ -52,7 +63,13 @@ await message.reply(
 
 ${q.question}
 
-${options.join("\n")}`
+${options.join("\n")}
+
+━━━━━━━━━━━━━━
+▶ Commands:
+.restart
+.exit
+━━━━━━━━━━━━━━`
 )
 
 }catch(err){
@@ -62,25 +79,29 @@ return message.reply("❌ Failed to fetch question")
 return
 }
 
-/* CHECK ANSWER */
+/* IGNORE OTHER COMMANDS */
+if(input.startsWith(".")) return
 
+/* CHECK ANSWER */
 if(game.started){
 
 if(game.mode==="multi" && !game.players.includes(sender)) return
 
-let answer = input   // ✅ FIXED
+let correct = game.data.answer
 
-if(answer === game.data.answer){
+// ✅ SMART MATCH
+if(
+input === correct ||
+correct.includes(input) ||
+input.includes(correct)
+){
 
 await message.reply(
 `🎉 ${sender.split("@")[0]} got it right!`
 )
 
-// ✅ reset for next question
+// next question instead of ending
 game.data.answer = null
-
-// OPTIONAL: end game
-endGame(chat)
 
 }else{
 return message.reply("❌ Wrong answer, try again")
