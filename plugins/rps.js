@@ -1,146 +1,127 @@
 import { games, createGame, joinGame, startGame, endGame } from "../games/engine.js"
 
-export default async function(client, message, args){
+export default async function (client, message, args) {
 
-const input = message.body.toLowerCase().trim()  // ✅ ADD HERE
+    const input = message.body.toLowerCase().trim()
+    const chat = message.from
+    const sender = message.author || message.from
+    const mode = args[0] || "single"
 
-const chat = message.from
-const sender = message.author || message.from
-const mode = args[0] || "single"
-if(!games[chat]){
+    /* CREATE GAME */
+    if (!games[chat]) {
 
-createGame(chat,"rps",sender,mode)
+        createGame(chat, "rps", sender, mode)
 
-if(mode === "multi"){
-return message.reply(
-`✊ Rock Paper Scissors Lobby
+        if (mode === "multi") {
+            return message.reply(
+                `✊ Rock Paper Scissors Lobby\n\n.join to join\n.start to begin (2 players max)`
+            )
+        }
 
-.join to join
-.start to begin (2 players max)`
-)
-}
+        startGame(chat, sender)
 
-startGame(chat, sender)
+        return message.reply(
+            `✊ Rock Paper Scissors\n\nSend:\nrock\npaper\nscissors`
+        )
+    }
 
-return message.reply(
-`✊ Rock Paper Scissors
+    // fix: declare game variable that was missing — this was the main crash cause
+    let game = games[chat]
 
-Send:
-rock
-paper
-scissors`
-)
-}
-/* JOIN */
+    /* JOIN */
+    if (input === ".join") {
 
-if(input === ".join"){
+        if (game.players.length >= 2)
+            return message.reply("❌ RPS only supports 2 players")
 
-if(game.players.length >= 2)
-return message.reply("❌ RPS only supports 2 players")
+        const result = joinGame(chat, sender)
+        if (result === "already-joined") return message.reply("⚠️ You already joined")
 
-joinGame(chat, sender)
+        return message.reply(`Player joined (${game.players.length}/2)`)
+    }
 
-return message.reply(`Player joined (${game.players.length}/2)`)
-}
+    /* START */
+    if (input === ".start") {
 
-/* START */
+        if (sender !== game.host)
+            return message.reply("❌ Only the host can start")
 
-if(input === ".start"){
+        if (game.mode === "multi" && game.players.length < 2)
+            return message.reply("❌ Need 2 players to start")
 
-if(sender !== game.host)
-return message.reply("Only the host can start")
+        const result = startGame(chat, sender)
+        if (result !== "started") return message.reply("⚠️ Could not start game")
 
-if(game.mode === "multi" && game.players.length < 2)
-return message.reply("Need 2 players")
+        return message.reply(
+            `✊ Rock Paper Scissors\n\nSend:\nrock\npaper\nscissors`
+        )
+    }
 
-startGame(chat, sender)
+    /* GAME INPUT */
+    if (!game.started) return
 
-return message.reply(
-`✊ Rock Paper Scissors
+    if (game.mode === "multi" && !game.players.includes(sender)) return
 
-Send:
-rock
-paper
-scissors`
-)
-}
+    const options = ["rock", "paper", "scissors"]
 
-/* GAME INPUT */
+    if (!options.includes(input)) {
+        return message.reply("❌ Send: rock / paper / scissors")
+    }
 
-if(game.started){
+    /* SINGLE PLAYER */
+    if (game.mode === "single") {
 
-if(game.mode === "multi" && !game.players.includes(sender))
-return
+        const bot = options[Math.floor(Math.random() * 3)]
 
-const options = ["rock","paper","scissors"]
-let choice = input
+        if (input === bot) {
+            await message.reply(`🤝 Draw!\nYou: ${input}\nBot: ${bot}`)
+        } else if (
+            (input === "rock" && bot === "scissors") ||
+            (input === "paper" && bot === "rock") ||
+            (input === "scissors" && bot === "paper")
+        ) {
+            await message.reply(`🎉 You win!\nBot chose: ${bot}`)
+        } else {
+            await message.reply(`🤖 Bot wins!\nBot chose: ${bot}`)
+        }
 
-if(!options.includes(choice)){
-   return message.reply("❌ Send: rock / paper / scissors")
-}
+        endGame(chat)
+        return
+    }
 
-/* SINGLE PLAYER */
+    /* MULTIPLAYER */
+    if (!game.data) game.data = {}
 
-if(game.mode === "single"){
+    // fix: prevent a player from voting twice
+    if (game.data[sender]) {
+        return message.reply("⏳ Waiting for the other player...")
+    }
 
-let bot = options[Math.floor(Math.random()*3)]
+    game.data[sender] = input
 
-if(choice === bot){
-await message.reply(`🤝 Draw!\nYou: ${choice}\nBot: ${bot}`)
-}
-else if(
-(choice === "rock" && bot === "scissors") ||
-(choice === "paper" && bot === "rock") ||
-(choice === "scissors" && bot === "paper")
-){
-await message.reply(`🎉 You win!\nBot chose: ${bot}`)
-}
-else{
-await message.reply(`🤖 Bot wins!\nBot chose: ${bot}`)
-}
+    if (Object.keys(game.data).length < 2) {
+        return message.reply("✅ Choice locked in — waiting for opponent...")
+    }
 
-endGame(chat)
-return
-}
+    const players = Object.keys(game.data)
+    const p1 = game.data[players[0]]
+    const p2 = game.data[players[1]]
 
-/* MULTIPLAYER */
+    let result = "🤝 Draw"
 
-game.data[sender] = choice
+    if (
+        (p1 === "rock" && p2 === "scissors") ||
+        (p1 === "paper" && p2 === "rock") ||
+        (p1 === "scissors" && p2 === "paper")
+    ) {
+        result = `🏆 ${players[0].split("@")[0]} wins`
+    } else if (p1 !== p2) {
+        result = `🏆 ${players[1].split("@")[0]} wins`
+    }
 
-if(Object.keys(game.data).length === 2){
+    await message.reply(
+        `✊ RPS Result\n\n${players[0].split("@")[0]}: ${p1}\n${players[1].split("@")[0]}: ${p2}\n\n${result}`
+    )
 
-let players = Object.keys(game.data)
-
-let p1 = game.data[players[0]]
-let p2 = game.data[players[1]]
-
-let result = "Draw"
-
-if(
-(p1==="rock" && p2==="scissors") ||
-(p1==="paper" && p2==="rock") ||
-(p1==="scissors" && p2==="paper")
-){
-result = `${players[0].split("@")[0]} wins`
-}
-else if(p1 !== p2){
-result = `${players[1].split("@")[0]} wins`
-}
-
-await message.reply(
-`✊ RPS Result
-
-${players[0].split("@")[0]}: ${p1}
-${players[1].split("@")[0]}: ${p2}
-
-🏆 ${result}`
-)
-
-game.data = {}
-endGame(chat)
-
-}
-
-}
-
+    endGame(chat)
 }
