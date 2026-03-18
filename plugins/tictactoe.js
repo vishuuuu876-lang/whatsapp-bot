@@ -1,18 +1,12 @@
 // after game creation block
-
 let game = games[chat]
 
-/* INPUT (ALWAYS FIRST) */
+/* INPUT */
 const input = message.body.toLowerCase().trim()
 
-/* RESTART COMMAND */
+/* RESTART */
 if(input === ".restart"){
 
-if(!game){
-return message.reply("❌ No game to restart")
-}
-
-/* reset board */
 game.data = {
 board:["1","2","3","4","5","6","7","8","9"]
 }
@@ -28,7 +22,10 @@ return message.reply(`🔄 Game restarted!
 Send a number (1-9)`)
 }
 
-/* STOP IF NO GAME DATA */
+/* IGNORE COMMANDS */
+if(input.startsWith(".")) return
+
+/* STOP IF NO DATA */
 if(!game.data) return
 
 /* PARSE MOVE */
@@ -62,7 +59,7 @@ endGame(chat)
 return
 }
 
-/* CHECK DRAW BEFORE BOT */
+/* DRAW BEFORE BOT */
 if(board.every(v => v === "X" || v === "O")){
 await message.reply(`🤝 It's a draw!
 
@@ -98,7 +95,7 @@ endGame(chat)
 return
 }
 
-/* CHECK DRAW AFTER BOT */
+/* DRAW AFTER BOT */
 if(board.every(v => v === "X" || v === "O")){
 await message.reply(`🤝 It's a draw!
 
