@@ -1,3 +1,48 @@
+import pkg from "whatsapp-web.js"
+const { Client, LocalAuth } = pkg
+
+import {
+games,
+joinGame,
+leaveGame,
+startGame,
+endGame,
+getPlayers,
+gameStatus
+} from "./games/engine.js"
+
+console.log("Starting WhatsApp bot...")
+
+/* CREATE CLIENT */
+const client = new Client({
+authStrategy: new LocalAuth({
+clientId: "main-session"
+}),
+puppeteer: {
+headless: true,
+args: [
+"--no-sandbox",
+"--disable-setuid-sandbox",
+"--disable-dev-shm-usage"
+]
+}
+})
+
+/* QR */
+client.on("qr", (qr) => {
+console.log("Scan QR:")
+console.log(
+"https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=" +
+encodeURIComponent(qr)
+)
+})
+
+/* READY */
+client.on("ready", () => {
+console.log("✅ WhatsApp Bot Connected")
+})
+
+/* MESSAGE HANDLER */
 client.on("message", async (message) => {
 
 if(message.fromMe) return
@@ -6,7 +51,7 @@ if(!message.body) return
 const chat = message.from
 const sender = message.author || message.from
 
-/* GAME INPUT FIRST */
+/* GAME INPUT */
 const game = games[chat]
 
 if(game){
@@ -19,13 +64,11 @@ console.error("Game input error:", err)
 return
 }
 
-/* ONLY COMMANDS */
+/* COMMANDS ONLY */
 if(!message.body.startsWith(".")) return
 
 const args = message.body.slice(1).trim().split(/ +/)
 const command = args.shift().toLowerCase()
-
-/* ENGINE COMMANDS */
 
 if(command === "join"){
 joinGame(chat, sender)
@@ -69,7 +112,7 @@ return message.reply(
 )
 }
 
-/* PLUGIN SYSTEM */
+/* PLUGINS */
 try{
 const plugin = await import(`./plugins/${command}.js`)
 await plugin.default(client, message, args)
@@ -84,4 +127,6 @@ message.reply("⚠️ Command error")
 }
 
 })
+
+/* START BOT */
 client.initialize()
