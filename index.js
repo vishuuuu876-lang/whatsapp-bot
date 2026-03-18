@@ -148,10 +148,11 @@ return message.reply(
 }
 
 /* PLUGIN SYSTEM */
-
 try {
+
 const plugin = await import(`./plugins/${command}.js`)
 await plugin.default(client, message, args)
+
 } catch (err) {
 
 if(err.code === "ERR_MODULE_NOT_FOUND"){
@@ -161,8 +162,8 @@ return message.reply("❌ Command not found")
 console.error(err)
 message.reply("⚠️ Command error")
 
-}   // ✅ closes try-catch
+}   // ✅ CLOSE catch
 
-})  // ✅ closes client.on("message")
+})  // ✅ CLOSE message handler
 
-client.initialize()  // ✅ bot start
+client.initialize()  // ✅ START BOT
