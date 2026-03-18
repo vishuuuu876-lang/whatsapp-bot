@@ -6,7 +6,7 @@ if(!message.body) return
 const chat = message.from
 const sender = message.author || message.from
 
-/* GAME INPUT */
+/* GAME INPUT FIRST */
 const game = games[chat]
 
 if(game){
@@ -19,13 +19,13 @@ console.error("Game input error:", err)
 return
 }
 
-/* ONLY COMMANDS BELOW */
+/* ONLY COMMANDS */
 if(!message.body.startsWith(".")) return
 
 const args = message.body.slice(1).trim().split(/ +/)
 const command = args.shift().toLowerCase()
 
-/* GAME ENGINE COMMANDS */
+/* ENGINE COMMANDS */
 
 if(command === "join"){
 joinGame(chat, sender)
@@ -70,10 +70,10 @@ return message.reply(
 }
 
 /* PLUGIN SYSTEM */
-try {
+try{
 const plugin = await import(`./plugins/${command}.js`)
 await plugin.default(client, message, args)
-} catch (err) {
+}catch(err){
 
 if(err.code === "ERR_MODULE_NOT_FOUND"){
 return message.reply("❌ Command not found")
@@ -83,6 +83,5 @@ console.error(err)
 message.reply("⚠️ Command error")
 }
 
-})  // ✅ ONLY ONE CLOSING
-
+})
 client.initialize()
