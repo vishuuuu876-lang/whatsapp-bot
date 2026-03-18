@@ -1,162 +1,103 @@
-import pkg from "whatsapp-web.js";
-const { Client, LocalAuth } = pkg;
+export const games = {};
 
-import {
-    games,
-    joinGame,
-    leaveGame,
-    startGame,
-    endGame,
-    getPlayers,
-    gameStatus
-} from "./games/engine.js";
+/* CREATE GAME */
+export function createGame(chat, type, host, mode = "single") {
 
-console.log("🚀 Starting WhatsApp bot...");
+    if (games[chat]) return "game-exists";
 
-/* CREATE CLIENT */
-const client = new Client({
-    authStrategy: new LocalAuth({ clientId: "main-session" }),
-    puppeteer: {
-        headless: true,
-        args: [
-            "--no-sandbox",
-            "--disable-setuid-sandbox",
-            "--disable-dev-shm-usage"
-        ]
-    }
-});
+    const maxPlayers = {
+        tictactoe: 2,
+        rps: 2,
+        quiz: 50
+    };
 
-/* QR */
-client.on("qr", (qr) => {
-    console.log("Scan this QR Code:");
-    console.log(
-        "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=" +
-        encodeURIComponent(qr)
-    );
-});
+    games[chat] = {
+        type,
+        host,
+        mode,
+        players: [host],
+        started: (mode === "single"),
+        maxPlayers: maxPlayers[type] || 10,
+        data: {}
+    };
 
-/* READY */
-client.on("ready", () => {
-    console.log("✅ WhatsApp Bot Connected and Ready!");
-});
+    return "created";
+}
 
-/* MESSAGE HANDLER */
-client.on("message", async (message) => {
+/* JOIN GAME */
+export function joinGame(chat, player) {
 
-    if (message.fromMe) return;
-    if (!message.body) return;
-
-    const chat = message.from;
-    const sender = message.author || message.from;
-    const body = message.body.trim();
-    const input = body.toLowerCase();
-
-    console.log(`[MSG] ${sender} → ${body}`);
-
-    /* GAME INPUT */
     const game = games[chat];
+    if (!game) return "no-game";
 
-    if (game && !input.startsWith(".")) {
-        try {
-            const plugin = await import(`./plugins/${game.type}.js`);
-            await plugin.default(client, message, []);
-            return;
-        } catch (err) {
-            console.error("Game processing error:", err);
-            return message.reply("⚠️ Game error occurred.");
-        }
+    if (game.players.includes(player)) return "already-joined";
+
+    // block join after start (except quiz)
+    if (game.started && game.type !== "quiz") return "already-started";
+
+    if (game.players.length >= game.maxPlayers) return "player-limit";
+
+    game.players.push(player);
+    return "joined";
+}
+
+/* LEAVE GAME */
+export function leaveGame(chat, player) {
+
+    const game = games[chat];
+    if (!game) return "no-game";
+
+    game.players = game.players.filter(p => p !== player);
+
+    // end if host leaves OR no players left
+    if (player === game.host || game.players.length === 0) {
+        delete games[chat];
+        return "game-ended";
     }
 
-    /* ONLY COMMANDS */
-    if (!body.startsWith(".")) return;
+    return "left";
+}
 
-    const args = body.slice(1).trim().split(/ +/);
-    const command = args.shift().toLowerCase();
+/* START GAME */
+export function startGame(chat, player) {
 
-    /* SYSTEM COMMANDS */
+    const game = games[chat];
+    if (!game) return "no-game";
 
-    if (command === "join") {
-        const res = joinGame(chat, sender);
-        if (res === "joined") return message.reply("✅ You joined the game.");
-        if (res === "already-joined") return message.reply("⚠️ Already in game.");
-        return message.reply("❌ No game found.");
-    }
+    if (player !== game.host) return "not-host";
 
-    if (command === "leave") {
-        const res = leaveGame(chat, sender);
-        return message.reply(
-            res === "game-ended"
-                ? "🛑 Game ended (host left)"
-                : "👋 You left the game"
-        );
-    }
+    if (game.started) return "already-started";
 
-    if (command === "start") {
-        const res = startGame(chat, sender);
-        if (res === "started") return message.reply("🎮 Game started!");
-        if (res === "not-host") return message.reply("❌ Only host can start.");
-        return message.reply("❌ Start failed.");
-    }
+    game.started = true;
+    return "started";
+}
 
-    if (command === "end" || command === "exit") {
-        endGame(chat);
-        return message.reply("🛑 Game ended.");
-    }
+/* END GAME */
+export function endGame(chat) {
 
-    if (command === "restart") {
-        const game = games[chat];
-        if (!game) return message.reply("❌ No game to restart.");
+    if (!games[chat]) return false;
 
-        game.data = {};
-        game.started = true;
+    delete games[chat];
+    return true;
+}
 
-        return message.reply("🔄 Game restarted!");
-    }
+/* RESET GAME (NEW) */
+export function resetGame(chat) {
 
-    if (command === "players") {
-        const players = getPlayers(chat);
-        if (players.length === 0)
-            return message.reply("No players.");
+    const game = games[chat];
+    if (!game) return false;
 
-        const list = players
-            .map(p => `@${p.split("@")[0]}`)
-            .join("\n");
+    game.data = {};
+    game.started = true;
 
-        return message.reply(
-            `👥 Players:\n${list}`,
-            null,
-            { mentions: players }
-        );
-    }
+    return true;
+}
 
-    if (command === "status") {
-        const gameData = gameStatus(chat);
+/* HELPERS */
+export function getPlayers(chat) {
+    return games[chat]?.players || [];
+}
 
-        if (!gameData)
-            return message.reply("No game running.");
-
-        return message.reply(
-            `🎮 Game: ${gameData.type}
-👥 Players: ${gameData.players.length}
-▶ Started: ${gameData.started}`
-        );
-    }
-
-    /* PLUGIN SYSTEM */
-    try {
-        const plugin = await import(`./plugins/${command}.js`);
-        await plugin.default(client, message, args);
-    } catch (err) {
-
-        if (err.code === "ERR_MODULE_NOT_FOUND") {
-            return message.reply("❌ Unknown command");
-        }
-
-        console.error("Plugin Error:", err);
-        message.reply("⚠️ Command error");
-    }
-
-});
-
-/* START */
-client.initialize();
+export function gameStatus(chat) {
+    return games[chat] || null;
+}
