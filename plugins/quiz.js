@@ -1,18 +1,18 @@
 import { games, createGame, joinGame, startGame, endGame } from "../games/engine.js"
 
-/* Decode HTML entities from opentdb API */
+/* Decode HTML entities just in case */
 function decodeHTML(str) {
     return str
-        .replace(/&amp;/g,  "&")
-        .replace(/&lt;/g,   "<")
-        .replace(/&gt;/g,   ">")
-        .replace(/&quot;/g, '"')
-        .replace(/&#039;/g, "'")
+        .replace(/&amp;/g,   "&")
+        .replace(/&lt;/g,    "<")
+        .replace(/&gt;/g,    ">")
+        .replace(/&quot;/g,  '"')
+        .replace(/&#039;/g,  "'")
         .replace(/&ldquo;/g, "\u201C")
         .replace(/&rdquo;/g, "\u201D")
 }
 
-/* fix: fetch with a hard timeout so the handler never hangs silently */
+/* Fetch with hard timeout — prevents handler hanging silently */
 async function fetchWithTimeout(url, timeoutMs = 8000) {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -26,10 +26,10 @@ async function fetchWithTimeout(url, timeoutMs = 8000) {
 
 export default async function(client, message, args){
 
-    const input = message.body.toLowerCase().trim()
-    const chat  = message.from
+    const input  = message.body.toLowerCase().trim()
+    const chat   = message.from
     const sender = message.author || message.from
-    const mode  = args[0] || "single"
+    const mode   = args[0] || "single"
 
     /* EXIT */
     if(input === ".exit"){
@@ -75,7 +75,6 @@ export default async function(client, message, args){
         if(sender !== game.host) return message.reply("❌ Only the host can start")
         const result = startGame(chat, sender)
         if(result !== "started") return message.reply("⚠️ Could not start")
-        // fall through to fetch question
     }
 
     if(!game.started) return
@@ -86,13 +85,14 @@ export default async function(client, message, args){
     /* ASK QUESTION */
     if(!game.data.answer){
 
-        try {
+        try{
 
             await message.reply("🧠 Fetching question...")
 
-            // fix: 8 second timeout — opentdb can hang indefinitely without this
+            // switched from dead opentdb.com to the-trivia-api.com
+            // — free, no API key needed, actively maintained
             const res = await fetchWithTimeout(
-                "https://opentdb.com/api.php?amount=1&type=multiple",
+                "https://the-trivia-api.com/v2/questions?limit=1",
                 8000
             )
 
@@ -103,22 +103,17 @@ export default async function(client, message, args){
 
             const data = await res.json()
 
-            // fix: opentdb returns response_code 5 when rate limited
-            if(data.response_code === 5){
-                endGame(chat)
-                return message.reply("❌ Too many requests to quiz API. Wait 10 seconds and try .quiz again.\nGame ended.")
-            }
-
-            if(!data.results || data.results.length === 0){
+            if(!data || !data.length){
                 endGame(chat)
                 return message.reply("❌ No questions returned. Try .quiz again.\nGame ended.")
             }
 
-            const q = data.results[0]
+            const q = data[0]
 
-            const question       = decodeHTML(q.question)
-            const correctAnswer  = decodeHTML(q.correct_answer)
-            const wrongAnswers   = q.incorrect_answers.map(decodeHTML)
+            // the-trivia-api uses correctAnswer and incorrectAnswers fields
+            const question      = decodeHTML(q.question.text)
+            const correctAnswer = decodeHTML(q.correctAnswer)
+            const wrongAnswers  = q.incorrectAnswers.map(decodeHTML)
 
             game.data.answer = correctAnswer.toLowerCase()
 
@@ -139,7 +134,7 @@ ${options.join("\n")}
 ━━━━━━━━━━━━━━`
             )
 
-        } catch(err) {
+        }catch(err){
 
             endGame(chat)
 
@@ -161,14 +156,11 @@ ${options.join("\n")}
     const correct = game.data.answer
 
     if(input === correct){
-
         await message.reply(
             `🎉 ${sender.split("@")[0]} got it right!\nAnswer: ${correct}`
         )
-
-        // next question
+        // load next question
         game.data.answer = null
-
     } else {
         return message.reply("❌ Wrong answer, try again")
     }
