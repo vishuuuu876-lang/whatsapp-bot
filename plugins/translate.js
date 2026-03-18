@@ -2,56 +2,81 @@ import axios from "axios"
 
 export default async function(client, message, args){
 
-let text = ""
-let lang = args[0]
+    let text = ""
 
-/* TRANSLATE REPLIED MESSAGE */
+    /* TRANSLATE REPLIED MESSAGE */
+    if(message.hasQuotedMsg){
 
-if(message.hasQuotedMsg){
+        const quoted = await message.getQuotedMessage()
 
-const quoted = await message.getQuotedMessage()
+        if(!quoted.body)
+            return message.reply("❌ Reply to a text message to translate it")
 
-if(!quoted.body)
-return message.reply("Reply to a text message")
+        text = quoted.body
 
-text = quoted.body
+    }
 
-if(!lang)
-return message.reply("Example:\n.translate hi")
+    /* TRANSLATE INLINE TEXT — .translate some text here */
+    else{
 
-}
+        if(args.length === 0)
+            return message.reply(
+                "🌍 Usage:\n\n" +
+                "Reply to any message with:\n.translate\n\n" +
+                "Or type directly:\n.translate bonjour comment ça va"
+            )
 
-/* NORMAL TRANSLATION */
+        text = args.join(" ")
+    }
 
-else{
+    try{
 
-if(args.length < 2)
-return message.reply("Example:\n.translate hi hello")
+        // auto-detect source language, always translate to English
+        const res = await axios.get(
+            "https://api.mymemory.translated.net/get",
+            {
+                params: {
+                    q: text,
+                    langpair: "autodetect|en"
+                },
+                timeout: 8000
+            }
+        )
 
-lang = args[0]
-text = args.slice(1).join(" ")
+        const data = res.data
 
-}
+        // guard against API error responses
+        if(data.responseStatus !== 200){
+            console.error("MyMemory API error:", data)
+            return message.reply("❌ Translation failed, try again")
+        }
 
-try{
+        const translated = data.responseData?.translatedText
 
-const res = await axios.get(
-`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=auto|${lang}`
-)
+        if(!translated || translated.trim() === ""){
+            return message.reply("❌ Could not translate that text")
+        }
 
-const translated = res.data.responseData.translatedText
+        // if already English, MyMemory sometimes returns the same text
+        if(translated.toLowerCase().trim() === text.toLowerCase().trim()){
+            return message.reply(`ℹ️ Text appears to already be in English:\n\n${text}`)
+        }
 
-await message.reply(
-`🌍 Translation (${lang})
+        const detectedLang = data.matches?.[0]?.["match-quality"] || ""
 
-${translated}`
-)
+        await message.reply(
+            `🌍 Translated to English\n\n${translated}`
+        )
 
-}catch(err){
+    }catch(err){
 
-console.error(err)
-message.reply("❌ Translation failed")
+        console.error("Translate error:", err.message)
 
-}
+        if(err.code === "ECONNABORTED"){
+            return message.reply("❌ Translation timed out, try again")
+        }
+
+        message.reply("❌ Translation failed")
+    }
 
 }
