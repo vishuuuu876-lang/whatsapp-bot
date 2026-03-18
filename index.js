@@ -11,6 +11,8 @@ import {
     gameStatus
 } from "./games/engine.js"
 
+import { infoSessions } from "./plugins/info.js"
+
 console.log("Starting WhatsApp bot...")
 
 /* GLOBAL ERROR HANDLERS — prevents Railway crashes on unhandled errors */
@@ -65,8 +67,18 @@ client.on("message", async (message) => {
     if (!message.body) return
 
     const chat = message.from
-    // fix: message.author is undefined in private chats, fallback to message.from
     const sender = message.author || message.from
+
+    /* INFO SESSION — intercept numbered replies before anything else */
+    if (infoSessions[chat] && !message.body.startsWith(".")) {
+        try {
+            const infoPlugin = await import("./plugins/info.js")
+            await infoPlugin.default(client, message, [])
+        } catch (err) {
+            console.error("Info session error:", err)
+        }
+        return
+    }
 
     /* GAME INPUT */
     const game = games[chat]
@@ -74,7 +86,6 @@ client.on("message", async (message) => {
     if (game) {
         try {
             const plugin = await import(`./plugins/${game.type}.js`)
-            // fix: pass actual message args instead of empty array
             const args = message.body.trim().split(/ +/)
             await plugin.default(client, message, args)
         } catch (err) {
@@ -115,7 +126,6 @@ client.on("message", async (message) => {
     if (command === "end") {
         const game = gameStatus(chat)
         if (!game) return message.reply("❌ No game running")
-        // fix: only host can end the game
         if (game.host !== sender) return message.reply("❌ Only the host can end the game")
         endGame(chat)
         return message.reply("🛑 Game ended")
@@ -135,9 +145,18 @@ client.on("message", async (message) => {
         )
     }
 
+    /* COMMAND ALIASES */
+    const aliases = {
+        truth: "truthordare",
+        dare: "truthordare",
+        tod: "truthordare"
+    }
+
+    const resolvedCommand = aliases[command] || command
+
     /* PLUGINS */
     try {
-        const plugin = await import(`./plugins/${command}.js`)
+        const plugin = await import(`./plugins/${resolvedCommand}.js`)
         await plugin.default(client, message, args)
     } catch (err) {
         if (err.code === "ERR_MODULE_NOT_FOUND") {
