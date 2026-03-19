@@ -1,11 +1,11 @@
 import { games, createGame, startGame, endGame } from "../games/engine.js"
+import { isGroup, getSender, getName } from "../helpers.js"
 
-/* CHECK WINNER HELPER */
 function checkWinner(board, mark) {
     const wins = [
-        [0,1,2],[3,4,5],[6,7,8], // rows
-        [0,3,6],[1,4,7],[2,5,8], // cols
-        [0,4,8],[2,4,6]          // diagonals
+        [0,1,2],[3,4,5],[6,7,8],
+        [0,3,6],[1,4,7],[2,5,8],
+        [0,4,8],[2,4,6]
     ]
     return wins.some(combo => combo.every(i => board[i] === mark))
 }
@@ -20,99 +20,122 @@ function formatBoard(board) {
     )
 }
 
-export default async function (client, message, args) {
+export default async function(client, message, args){
 
-    const input = message.body.toLowerCase().trim()
-    const chat = message.from
-    const sender = message.author || message.from
+    const input  = message.body.toLowerCase().trim()
+    const chat   = message.from
+    const sender = getSender(message)
+    const group  = isGroup(message)
 
-    /* CREATE GAME — fix: was missing entirely */
-    if (!games[chat]) {
+    /* CREATE GAME */
+    if(!games[chat]){
 
         createGame(chat, "tictactoe", sender, "single")
         startGame(chat, sender)
 
-        let game = games[chat]
+        const game         = games[chat]
+        game.data.board    = ["1","2","3","4","5","6","7","8","9"]
+        game.data.player   = sender
 
-        // fix: initialize board on creation so first move never crashes
-        game.data.board = ["1","2","3","4","5","6","7","8","9"]
+        const mention = group ? `@${getName(sender)}` : "You"
 
         return message.reply(
-            `🎮 Tic Tac Toe\n\n${formatBoard(game.data.board)}\n\nSend a number (1-9)`
+`🎮 *Tic Tac Toe*
+${mention} ✖ vs 🤖 Bot
+
+${formatBoard(game.data.board)}
+
+━━━━━━━━━━━━━━
+📖 Send a number (1-9) to place your mark
+🕹 *.restart* — reset board
+🕹 *.help* — show commands
+🕹 *.end* — quit game
+━━━━━━━━━━━━━━`,
+        group ? { mentions: [sender] } : {}
         )
     }
 
     let game = games[chat]
 
-    /* RESTART */
-    if (input === ".restart") {
-        game.data = {
-            board: ["1","2","3","4","5","6","7","8","9"]
-        }
-        return message.reply(`🔄 Game restarted!\n\n${formatBoard(game.data.board)}\n\nSend a number (1-9)`)
+    /* IN GROUP — only the player who started can play */
+    if(group && sender !== game.data.player){
+        return message.reply(
+            `⚠️ @${getName(game.data.player)} is currently playing!\nWait for them to finish or they can type *.end*`,
+            { mentions: [game.data.player] }
+        )
     }
 
-    /* IGNORE OTHER COMMANDS */
-    if (input.startsWith(".")) return
+    /* HELP */
+    if(input === ".help"){
+        return message.reply(
+`🎮 *Tictactoe Commands*
 
-    /* STOP IF NO BOARD — safety guard */
-    if (!game.data || !game.data.board) {
-        game.data = { board: ["1","2","3","4","5","6","7","8","9"] }
+1-9 — place your move
+*.restart* — reset the board
+*.end* — quit the game
+
+${formatBoard(game.data?.board || ["1","2","3","4","5","6","7","8","9"])}`)
+    }
+
+    /* RESTART */
+    if(input === ".restart"){
+        game.data.board = ["1","2","3","4","5","6","7","8","9"]
+        return message.reply(`🔄 *Board reset!*\n\n${formatBoard(game.data.board)}\n\nSend a number (1-9)`)
+    }
+
+    if(input.startsWith(".")) return
+
+    /* SAFETY GUARD */
+    if(!game.data || !game.data.board){
+        game.data.board = ["1","2","3","4","5","6","7","8","9"]
         return message.reply(`♻️ Board reset\n\n${formatBoard(game.data.board)}\n\nSend a number (1-9)`)
     }
 
-    /* PARSE MOVE */
     const move = parseInt(input)
 
-    if (isNaN(move) || move < 1 || move > 9) {
-        return message.reply("⚠️ Send a number between 1-9")
-    }
+    if(isNaN(move) || move < 1 || move > 9)
+        return message.reply("⚠️ Send a number 1-9\nType *.help* to see commands")
 
     let board = game.data.board
 
-    if (board[move - 1] === "X" || board[move - 1] === "O") {
-        return message.reply("❌ Position already taken")
-    }
+    if(board[move-1] === "X" || board[move-1] === "O")
+        return message.reply("❌ That spot is taken — pick another number")
 
-    /* PLAYER MOVE */
-    board[move - 1] = "X"
+    board[move-1] = "X"
 
-    /* CHECK PLAYER WIN */
-    if (checkWinner(board, "X")) {
-        await message.reply(`🎉 You win!\n\n${formatBoard(board)}`)
+    const winnerTag = group ? `@${getName(sender)} wins!` : "You win! 🎉"
+
+    if(checkWinner(board, "X")){
+        await message.reply(
+            `🎉 *${winnerTag}*\n\n${formatBoard(board)}\n\nType *.tictactoe* to play again`,
+            group ? { mentions: [sender] } : {}
+        )
         endGame(chat)
         return
     }
 
-    /* DRAW BEFORE BOT */
-    if (board.every(v => v === "X" || v === "O")) {
-        await message.reply(`🤝 It's a draw!\n\n${formatBoard(board)}`)
+    if(board.every(v => v === "X" || v === "O")){
+        await message.reply(`🤝 *Draw!*\n\n${formatBoard(board)}\n\nType *.tictactoe* to play again`)
         endGame(chat)
         return
     }
 
     /* BOT MOVE */
-    const empty = board
-        .map((v, i) => (v !== "X" && v !== "O") ? i : null)
-        .filter(v => v !== null)
-
+    const empty   = board.map((v,i) => (v !== "X" && v !== "O") ? i : null).filter(v => v !== null)
     const botMove = empty[Math.floor(Math.random() * empty.length)]
     board[botMove] = "O"
 
-    /* CHECK BOT WIN */
-    if (checkWinner(board, "O")) {
-        await message.reply(`🤖 Bot wins!\n\n${formatBoard(board)}`)
+    if(checkWinner(board, "O")){
+        await message.reply(`🤖 *Bot wins!*\n\n${formatBoard(board)}\n\nType *.tictactoe* to play again`)
         endGame(chat)
         return
     }
 
-    /* DRAW AFTER BOT */
-    if (board.every(v => v === "X" || v === "O")) {
-        await message.reply(`🤝 It's a draw!\n\n${formatBoard(board)}`)
+    if(board.every(v => v === "X" || v === "O")){
+        await message.reply(`🤝 *Draw!*\n\n${formatBoard(board)}\n\nType *.tictactoe* to play again`)
         endGame(chat)
         return
     }
 
-    /* SHOW BOARD */
-    return message.reply(formatBoard(board))
+    return message.reply(`${formatBoard(board)}\n\nYour turn — send a number (1-9)`)
 }
