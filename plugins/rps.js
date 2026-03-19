@@ -3,6 +3,11 @@ import { isGroup, getSender, getName } from "../helpers.js"
 
 const pendingMode = {}
 
+/* fix: only pass mentions in group chats — crashes in DM */
+function replyOpts(group, mentions) {
+    return group ? { mentions } : {}
+}
+
 export default async function(client, message, args){
 
     const input  = message.body.toLowerCase().trim()
@@ -10,16 +15,14 @@ export default async function(client, message, args){
     const sender = getSender(message)
     const group  = isGroup(message)
 
-    /* MODE SELECTION */
+    /* MODE SELECTION MENU */
     if(!games[chat] && !pendingMode[chat]){
-
         if(args[0] === "single" || args[0] === "multi" || args[0] === "solo"){
             // mode passed directly — skip menu
         } else {
             pendingMode[chat] = true
 
             if(group){
-                // in group show both options
                 return message.reply(
 `✊ *Rock Paper Scissors*
 
@@ -30,7 +33,6 @@ Choose a mode:
 
 _Reply 1 or 2 — Reply 0 to cancel_`)
             } else {
-                // in private chat only single player available
                 return message.reply(
 `✊ *Rock Paper Scissors*
 
@@ -57,7 +59,6 @@ _Reply 1 to start — Reply 0 to cancel_`)
 `⚠️ *Multiplayer is only available in group chats!*
 
 Add the bot to a WhatsApp group to play with friends.
-
 Reply *1* to play solo instead, or *0* to cancel`)
             }
             args[0] = "multi"
@@ -77,7 +78,6 @@ Reply *1* to play solo instead, or *0* to cancel`)
     /* CREATE GAME */
     if(!games[chat] && (mode === "single" || mode === "multi")){
 
-        // extra guard — block multi in private chat
         if(mode === "multi" && !group){
             return message.reply(
 `⚠️ *Multiplayer only works in group chats!*
@@ -94,13 +94,12 @@ Type *.rps* again to play solo.`)
 Started by @${getName(sender)}
 
 ━━━━━━━━━━━━━━
-🕹 *Commands:*
-*.join* — join the game (need 2 players)
-*.start* — start (host only)
-*.end* — cancel
-_.help* — show commands_
+🕹 *.join* — join the game (need 2 players)
+🕹 *.start* — start (host only)
+🕹 *.end* — cancel
+🕹 *.help* — commands
 ━━━━━━━━━━━━━━`,
-            { mentions: [sender] }
+            replyOpts(group, [sender])
             )
         }
 
@@ -138,9 +137,9 @@ Send your choice:
     if(input === ".join"){
         if(!group) return message.reply("❌ Join is only for group multiplayer games")
         if(game.players.includes(sender))
-            return message.reply(`⚠️ @${getName(sender)} you already joined!`, { mentions: [sender] })
+            return message.reply(`⚠️ @${getName(sender)} you already joined!`, replyOpts(group, [sender]))
         if(game.players.length >= 2)
-            return message.reply("❌ Game is full — only 2 players")
+            return message.reply("❌ Game is full — only 2 players allowed")
 
         const result = joinGame(chat, sender)
         if(result === "already-started") return message.reply("❌ Game already started")
@@ -152,7 +151,7 @@ Send your choice:
 ${ready
     ? `Both players ready!\n@${getName(game.host)} send *.start* to begin`
     : "Waiting for one more player..."}`,
-        { mentions: ready ? [sender, game.host] : [sender] }
+        replyOpts(group, ready ? [sender, game.host] : [sender])
         )
     }
 
@@ -160,10 +159,8 @@ ${ready
     if(input === ".start"){
         if(sender !== game.host)
             return message.reply(
-                group
-                    ? `❌ Only @${getName(game.host)} can start`
-                    : "❌ Only the host can start",
-                group ? { mentions: [game.host] } : {}
+                group ? `❌ Only @${getName(game.host)} can start` : "❌ Only the host can start",
+                replyOpts(group, [game.host])
             )
         if(game.mode === "multi" && game.players.length < 2)
             return message.reply("❌ Need 2 players — someone send *.join* first")
@@ -172,24 +169,20 @@ ${ready
         if(result !== "started") return message.reply("⚠️ Could not start")
 
         if(group){
-            const p1 = getName(game.players[0])
-            const p2 = getName(game.players[1])
             return message.reply(
 `✊ *Game Started!*
 
-@${p1} vs @${p2}
+@${getName(game.players[0])} vs @${getName(game.players[1])}
 
 Both send: *rock* / *paper* / *scissors*
-_.end — quit_`,
-            { mentions: game.players }
+_*.end* — quit_`,
+            replyOpts(group, game.players)
             )
         }
-
         return message.reply(`✊ *Game Started!*\n\nSend: *rock* / *paper* / *scissors*`)
     }
 
     if(!game.started) return
-
     if(game.mode === "multi" && !game.players.includes(sender)) return
 
     const options = ["rock", "paper", "scissors"]
@@ -215,7 +208,7 @@ _.end — quit_`,
         }
         await message.reply(
             `${result}\nYou: ${input} | Bot: ${bot}\n\nType *.rps* to play again`,
-            group ? { mentions: [sender] } : {}
+            replyOpts(group, [sender])
         )
         endGame(chat)
         return
@@ -225,10 +218,10 @@ _.end — quit_`,
     if(!game.data) game.data = {}
 
     if(game.data[sender])
-        return message.reply(`⏳ @${getName(sender)} already locked in — waiting for opponent`, { mentions: [sender] })
+        return message.reply(`⏳ @${getName(sender)} already locked in — waiting for opponent`, replyOpts(group, [sender]))
 
     game.data[sender] = input
-    await message.reply(`✅ @${getName(sender)} locked in 🔒`, { mentions: [sender] })
+    await message.reply(`✅ @${getName(sender)} locked in 🔒`, replyOpts(group, [sender]))
 
     if(Object.keys(game.data).length < 2) return
 
@@ -256,7 +249,7 @@ _.end — quit_`,
 ${outcome}
 
 Type *.rps* to play again`,
-    { mentions: players }
+    replyOpts(group, players)
     )
 
     endGame(chat)
