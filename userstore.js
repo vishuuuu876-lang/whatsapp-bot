@@ -1,93 +1,88 @@
-import { readFileSync, writeFileSync, existsSync } from "fs"
+import { getUsers, getUserCount, getRecentUsers } from "../userstore.js"
 
-const FILE = "./data/users.json"
+// only the bot owner can see the user list
+const OWNER = "918088900966@c.us"
 
-/* Load existing users from disk on startup */
-function loadUsers() {
-    try {
-        if(!existsSync("./data")) {
-            import("fs").then(fs => fs.mkdirSync("./data", { recursive: true }))
-        }
-        if(!existsSync(FILE)) return {}
-        return JSON.parse(readFileSync(FILE, "utf-8"))
-    } catch(err) {
-        console.error("❌ Failed to load users:", err.message)
-        return {}
-    }
-}
+export default async function(client, message, args){
 
-/* Save users to disk */
-function saveUsers(users) {
-    try {
-        if(!existsSync("./data")) {
-            import("fs").then(fs => fs.mkdirSync("./data", { recursive: true }))
-        }
-        writeFileSync(FILE, JSON.stringify(users, null, 2))
-    } catch(err) {
-        console.error("❌ Failed to save users:", err.message)
-    }
-}
+    const sender = message.author || message.from
 
-/* In-memory user store — loaded from disk on startup */
-const users = loadUsers()
-
-/**
- * Register a user when they interact with the bot
- * @param {string} id     — WhatsApp ID e.g. 1234567890@c.us
- * @param {string} chat   — Chat ID (group or private)
- * @param {boolean} group — Whether message came from a group
- */
-export function registerUser(id, chat, group = false) {
-    if(!id) return
-
-    const existing = users[id]
-
-    if(!existing) {
-        // new user
-        users[id] = {
-            id,
-            number:    id.split("@")[0],
-            firstSeen: new Date().toISOString(),
-            lastSeen:  new Date().toISOString(),
-            messageCount: 1,
-            groups: group ? [chat] : [],
-            private: !group
-        }
-        console.log(`👤 New user registered: ${id.split("@")[0]}`)
-    } else {
-        // returning user — update last seen and message count
-        users[id].lastSeen = new Date().toISOString()
-        users[id].messageCount = (users[id].messageCount || 0) + 1
-
-        // track which groups they've been seen in
-        if(group && !users[id].groups?.includes(chat)) {
-            users[id].groups = users[id].groups || []
-            users[id].groups.push(chat)
-        }
+    /* OWNER ONLY — protect user data */
+    if(sender !== OWNER){
+        return message.reply("❌ This command is only available to the bot owner")
     }
 
-    saveUsers(users)
-}
+    const subcommand = args[0]?.toLowerCase()
+    const total      = getUserCount()
+    const all        = getUsers()
+    const recent     = getRecentUsers(10)
 
-/**
- * Get all registered users
- */
-export function getUsers() {
-    return Object.values(users)
-}
+    /* .users — summary stats */
+    if(!subcommand || subcommand === "stats"){
 
-/**
- * Get total user count
- */
-export function getUserCount() {
-    return Object.keys(users).length
-}
+        const today = all.filter(u => {
+            const t = new Date()
+            const l = new Date(u.lastSeen)
+            return t.toDateString() === l.toDateString()
+        }).length
 
-/**
- * Get users sorted by most recent activity
- */
-export function getRecentUsers(limit = 20) {
-    return Object.values(users)
-        .sort((a, b) => new Date(b.lastSeen) - new Date(a.lastSeen))
-        .slice(0, limit)
+        const thisWeek = all.filter(u => {
+            const week = new Date()
+            week.setDate(week.getDate() - 7)
+            return new Date(u.lastSeen) > week
+        }).length
+
+        return message.reply(
+`👥 *Bot User Stats*
+
+━━━━━━━━━━━━━━
+📊 Total users: *${total}*
+🟢 Active today: *${today}*
+📅 Active this week: *${thisWeek}*
+━━━━━━━━━━━━━━
+
+*.users list* — recent 10 users
+*.users all* — all user numbers`)
+    }
+
+    /* .users list — recent 10 */
+    if(subcommand === "list"){
+
+        if(total === 0)
+            return message.reply("📭 No users registered yet")
+
+        const lines = recent.map((u, i) =>
+            `${i + 1}. +${u.number}\n   Last: ${new Date(u.lastSeen).toLocaleString()}\n   Messages: ${u.messageCount}`
+        ).join("\n\n")
+
+        return message.reply(
+`👥 *Recent Users (${recent.length}/${total})*
+
+━━━━━━━━━━━━━━
+${lines}
+━━━━━━━━━━━━━━`)
+    }
+
+    /* .users all — all numbers */
+    if(subcommand === "all"){
+
+        if(total === 0)
+            return message.reply("📭 No users registered yet")
+
+        const numbers = all.map(u => `+${u.number}`).join("\n")
+
+        return message.reply(
+`👥 *All Users (${total})*
+
+━━━━━━━━━━━━━━
+${numbers}
+━━━━━━━━━━━━━━`)
+    }
+
+    return message.reply(
+`👥 *Users Commands*
+
+*.users* — show stats
+*.users list* — recent 10 users
+*.users all* — all user numbers`)
 }
