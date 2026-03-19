@@ -20,6 +20,12 @@ function formatBoard(board) {
     )
 }
 
+// fix: only pass mentions in group chats
+// passing mentions in DMs causes "t.replace is not a function" crash
+function mention(group, ids) {
+    return group ? { mentions: ids } : {}
+}
+
 export default async function(client, message, args){
 
     const input  = message.body.toLowerCase().trim()
@@ -33,15 +39,17 @@ export default async function(client, message, args){
         createGame(chat, "tictactoe", sender, "single")
         startGame(chat, sender)
 
-        const game         = games[chat]
-        game.data.board    = ["1","2","3","4","5","6","7","8","9"]
-        game.data.player   = sender
+        const game       = games[chat]
+        game.data.board  = ["1","2","3","4","5","6","7","8","9"]
+        game.data.player = sender
 
-        const mention = group ? `@${getName(sender)}` : "You"
+        const header = group
+            ? `@${getName(sender)} ✖ vs 🤖 Bot`
+            : `You ✖ vs 🤖 Bot`
 
         return message.reply(
 `🎮 *Tic Tac Toe*
-${mention} ✖ vs 🤖 Bot
+${header}
 
 ${formatBoard(game.data.board)}
 
@@ -51,7 +59,7 @@ ${formatBoard(game.data.board)}
 🕹 *.help* — show commands
 🕹 *.end* — quit game
 ━━━━━━━━━━━━━━`,
-        group ? { mentions: [sender] } : {}
+        mention(group, [sender])
         )
     }
 
@@ -60,8 +68,8 @@ ${formatBoard(game.data.board)}
     /* IN GROUP — only the player who started can play */
     if(group && sender !== game.data.player){
         return message.reply(
-            `⚠️ @${getName(game.data.player)} is currently playing!\nWait for them to finish or they can type *.end*`,
-            { mentions: [game.data.player] }
+            `⚠️ @${getName(game.data.player)} is currently playing!\nWait for them to finish or type *.end* to cancel`,
+            mention(group, [game.data.player])
         )
     }
 
@@ -103,12 +111,11 @@ ${formatBoard(game.data?.board || ["1","2","3","4","5","6","7","8","9"])}`)
 
     board[move-1] = "X"
 
-    const winnerTag = group ? `@${getName(sender)} wins!` : "You win! 🎉"
-
     if(checkWinner(board, "X")){
         await message.reply(
-            `🎉 *${winnerTag}*\n\n${formatBoard(board)}\n\nType *.tictactoe* to play again`,
-            group ? { mentions: [sender] } : {}
+            group ? `🎉 @${getName(sender)} wins!\n\n${formatBoard(board)}\n\nType *.tictactoe* to play again`
+                  : `🎉 *You win!*\n\n${formatBoard(board)}\n\nType *.tictactoe* to play again`,
+            mention(group, [sender])
         )
         endGame(chat)
         return
