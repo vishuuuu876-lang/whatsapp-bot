@@ -14,7 +14,7 @@ import {
 
 import { infoSessions }     from "./plugins/info.js"
 import { businessSessions } from "./plugins/business.js"
-import { registerUser }     from "./userstore.js"
+import { registerUser, getUserSummary } from "./users.js"
 
 /* ensure data directory exists on startup */
 try { mkdirSync("./data", { recursive: true }) } catch{}
