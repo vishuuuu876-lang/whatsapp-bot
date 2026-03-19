@@ -3,6 +3,11 @@ import { isGroup, getSender, getName } from "../helpers.js"
 
 const pendingMode = {}
 
+/* fix: only pass mentions in group chats — crashes in DM */
+function replyOpts(group, mentions) {
+    return group ? { mentions } : {}
+}
+
 function decodeHTML(str) {
     return str
         .replace(/&amp;/g,   "&")
@@ -59,14 +64,12 @@ Type your answer to submit
 *.end* — quit`)
     }
 
-    /* MODE SELECTION */
+    /* MODE SELECTION MENU */
     if(!games[chat] && !pendingMode[chat]){
-
         if(args[0] === "single" || args[0] === "multi" || args[0] === "solo"){
             // skip menu
         } else {
             pendingMode[chat] = true
-
             if(group){
                 return message.reply(
 `🧠 *Quiz*
@@ -145,7 +148,7 @@ Started by @${getName(sender)}
 
 _First to answer each question wins the round!_
 ━━━━━━━━━━━━━━`,
-            { mentions: [sender] }
+            replyOpts(group, [sender])
             )
         }
 
@@ -168,7 +171,7 @@ _Send any message to get your first question!_`)
     if(input === ".join"){
         if(!group) return message.reply("❌ Join is only for group multiplayer games")
         if(game.players.includes(sender))
-            return message.reply(`⚠️ @${getName(sender)} you already joined!`, { mentions: [sender] })
+            return message.reply(`⚠️ @${getName(sender)} you already joined!`, replyOpts(group, [sender]))
 
         const result = joinGame(chat, sender)
         if(result === "already-started") return message.reply("❌ Quiz already started")
@@ -177,7 +180,7 @@ _Send any message to get your first question!_`)
 `✅ @${getName(sender)} joined! (${game.players.length} players)
 
 @${getName(game.host)} send *.start* when everyone is in`,
-        { mentions: [sender, game.host] }
+        replyOpts(group, [sender, game.host])
         )
     }
 
@@ -186,7 +189,7 @@ _Send any message to get your first question!_`)
         if(sender !== game.host)
             return message.reply(
                 group ? `❌ Only @${getName(game.host)} can start` : "❌ Only the host can start",
-                group ? { mentions: [game.host] } : {}
+                replyOpts(group, [game.host])
             )
         if(game.mode === "multi" && game.players.length < 2)
             return message.reply("❌ Need at least 2 players — others should send *.join* first")
@@ -204,7 +207,7 @@ First to answer each question wins the round!
 *.restart* — skip | *.end* — quit
 
 _Send any message to load first question!_`,
-        { mentions: game.players }
+        replyOpts(group, game.players)
         )
         return
     }
@@ -282,7 +285,7 @@ Type your answer to submit
             group
                 ? `🎉 @${getName(sender)} got it right!\n✅ Answer: ${game.data.answer}\n\n_Send any message for next question_`
                 : `🎉 Correct!\n✅ Answer: ${game.data.answer}\n\n_Send any message for next question_`,
-            group ? { mentions: [sender] } : {}
+            replyOpts(group, [sender])
         )
         game.data.answer = null
     } else {
