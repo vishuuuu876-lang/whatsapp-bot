@@ -3,6 +3,11 @@ import { isGroup, getSender, getName } from "../helpers.js"
 
 const pendingMode = {}
 
+/* fix: only pass mentions in group chats — crashes in DM */
+function replyOpts(group, mentions) {
+    return group ? { mentions } : {}
+}
+
 async function fetchWithTimeout(url, timeoutMs = 8000) {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -59,14 +64,12 @@ export default async function(client, message, args){
     const sender = getSender(message)
     const group  = isGroup(message)
 
-    /* MODE SELECTION */
+    /* MODE SELECTION MENU */
     if(!games[chat] && !pendingMode[chat]){
-
         if(args[0] === "single" || args[0] === "multi" || args[0] === "solo"){
             // skip menu
         } else {
             pendingMode[chat] = true
-
             if(group){
                 return message.reply(
 `🔤 *Word Scramble*
@@ -103,7 +106,7 @@ _Reply 1 to start — Reply 0 to cancel_`)
                 return message.reply(
 `⚠️ *Multiplayer is only available in group chats!*
 
-Add the bot to a WhatsApp group to play with friends.
+Add the bot to a group to play with friends.
 Reply *1* to play solo instead, or *0* to cancel`)
             }
             args[0] = "multi"
@@ -143,7 +146,7 @@ Started by @${getName(sender)}
 🕹 *.start* — begin (host only)
 🕹 *.end* — cancel
 ━━━━━━━━━━━━━━`,
-            { mentions: [sender] }
+            replyOpts(group, [sender])
             )
         }
 
@@ -178,7 +181,7 @@ Type the correct word to win
     if(input === ".join"){
         if(!group) return message.reply("❌ Join is only for group multiplayer games")
         if(game.players.includes(sender))
-            return message.reply(`⚠️ @${getName(sender)} you already joined!`, { mentions: [sender] })
+            return message.reply(`⚠️ @${getName(sender)} you already joined!`, replyOpts(group, [sender]))
 
         const result = joinGame(chat, sender)
         if(result === "player-limit")    return message.reply("❌ Game is full")
@@ -188,7 +191,7 @@ Type the correct word to win
 `✅ @${getName(sender)} joined! (${game.players.length} players)
 
 @${getName(game.host)} send *.start* when ready`,
-        { mentions: [sender, game.host] }
+        replyOpts(group, [sender, game.host])
         )
     }
 
@@ -197,7 +200,7 @@ Type the correct word to win
         if(sender !== game.host)
             return message.reply(
                 group ? `❌ Only @${getName(game.host)} can start` : "❌ Only the host can start",
-                group ? { mentions: [game.host] } : {}
+                replyOpts(group, [game.host])
             )
         if(game.mode === "multi" && game.players.length < 2)
             return message.reply("❌ Need at least 2 players — others should send *.join* first")
@@ -229,7 +232,7 @@ Word length: *${game.data.word.length} letters*`)
             group
                 ? `🎉 @${getName(sender)} solved it!\nWord: *${game.data.word}*\n\nType *.scramble* to play again`
                 : `🎉 Correct!\nWord: *${game.data.word}*\n\nType *.scramble* to play again`,
-            group ? { mentions: [sender] } : {}
+            replyOpts(group, [sender])
         )
         endGame(chat)
     } else {
