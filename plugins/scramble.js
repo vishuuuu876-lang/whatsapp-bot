@@ -1,6 +1,8 @@
 import { games, createGame, joinGame, startGame, endGame } from "../games/engine.js"
+import { isGroup, getSender, getName } from "../helpers.js"
 
-/* fix: fetch with hard timeout so handler never hangs on slow API */
+const pendingMode = {}
+
 async function fetchWithTimeout(url, timeoutMs = 8000) {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -12,113 +14,225 @@ async function fetchWithTimeout(url, timeoutMs = 8000) {
     }
 }
 
+async function fetchWord(message, game, chat, group) {
+    await message.reply("🔤 Fetching word...")
+    try {
+        const res = await fetchWithTimeout("https://random-word-api.herokuapp.com/word", 8000)
+        if(!res.ok) throw new Error("API error")
+        const data = await res.json()
+        if(!data || !data[0]) throw new Error("Empty response")
+
+        const word = data[0]
+        let scrambled = word
+        for(let i = 0; i < 10; i++){
+            const temp = word.split("").sort(() => Math.random() - 0.5).join("")
+            if(temp !== word){ scrambled = temp; break }
+        }
+        game.data.word = word
+
+        await message.reply(
+`🔤 *Unscramble this word:*
+
+*${scrambled}*
+
+━━━━━━━━━━━━━━
+📖 ${group ? "First to type the correct word wins!" : "Type the correct word to win!"}
+
+🕹 *.hint* — first letter & length
+🕹 *.help* — commands
+🕹 *.end* — quit
+━━━━━━━━━━━━━━`)
+
+    } catch(err) {
+        endGame(chat)
+        if(err.name === "AbortError")
+            return message.reply("❌ Word API timed out. Try *.scramble* again.")
+        console.error("Scramble error:", err.message)
+        return message.reply("❌ Failed to fetch word. Try *.scramble* again.")
+    }
+}
+
 export default async function(client, message, args){
 
     const input  = message.body.toLowerCase().trim()
     const chat   = message.from
-    const sender = message.author || message.from
-    const mode   = args[0] || "single"
+    const sender = getSender(message)
+    const group  = isGroup(message)
+
+    /* MODE SELECTION */
+    if(!games[chat] && !pendingMode[chat]){
+
+        if(args[0] === "single" || args[0] === "multi" || args[0] === "solo"){
+            // skip menu
+        } else {
+            pendingMode[chat] = true
+
+            if(group){
+                return message.reply(
+`🔤 *Word Scramble*
+
+Choose a mode:
+
+1️⃣ *Single player* — just you vs the word
+2️⃣ *Multiplayer* — race with group members
+
+_Reply 1 or 2 — Reply 0 to cancel_`)
+            } else {
+                return message.reply(
+`🔤 *Word Scramble*
+
+1️⃣ *Single player* — unscramble the word
+
+_Multiplayer is only available in group chats_
+_Reply 1 to start — Reply 0 to cancel_`)
+            }
+        }
+    }
+
+    /* HANDLE MODE REPLY */
+    if(pendingMode[chat] && !games[chat]){
+        if(input === "0"){
+            delete pendingMode[chat]
+            return message.reply("👋 Cancelled")
+        } else if(input === "1" || input === "single" || input === "solo"){
+            delete pendingMode[chat]
+            args[0] = "single"
+        } else if(input === "2" || input === "multi"){
+            delete pendingMode[chat]
+            if(!group){
+                return message.reply(
+`⚠️ *Multiplayer is only available in group chats!*
+
+Add the bot to a WhatsApp group to play with friends.
+Reply *1* to play solo instead, or *0* to cancel`)
+            }
+            args[0] = "multi"
+        } else if(input.startsWith(".")){
+            delete pendingMode[chat]
+        } else {
+            return message.reply(
+                group
+                    ? "⚠️ Reply *1* for single or *2* for multiplayer\nReply *0* to cancel"
+                    : "⚠️ Reply *1* to play solo\nReply *0* to cancel"
+            )
+        }
+    }
+
+    const mode = args[0] === "solo" ? "single" : (args[0] || "single")
 
     /* CREATE GAME */
-    if(!games[chat]){
+    if(!games[chat] && (mode === "single" || mode === "multi")){
+
+        if(mode === "multi" && !group){
+            return message.reply(
+`⚠️ *Multiplayer only works in group chats!*
+
+Add the bot to a group to play with friends.
+Type *.scramble* again to play solo.`)
+        }
 
         createGame(chat, "scramble", sender, mode)
 
         if(mode === "multi"){
             return message.reply(
-                `🔤 Word Scramble Lobby\n\n.join to join\n.start to begin`
+`🔤 *Word Scramble — Multiplayer*
+Started by @${getName(sender)}
+
+━━━━━━━━━━━━━━
+🕹 *.join* — join the game
+🕹 *.start* — begin (host only)
+🕹 *.end* — cancel
+━━━━━━━━━━━━━━`,
+            { mentions: [sender] }
             )
         }
 
         startGame(chat, sender)
-    }
-
-    let game = games[chat]
-    if(!game.data) game.data = {}
-
-    /* JOIN */
-    if(input === ".join"){
-        const result = joinGame(chat, sender)
-        if(result === "already-joined") return message.reply("⚠️ You already joined")
-        if(result === "player-limit")   return message.reply("❌ Game is full")
-        return message.reply(`Player joined (${game.players.length})`)
-    }
-
-    /* START */
-    if(input.startsWith(".start")){
-
-        if(sender !== game.host)
-            return message.reply("❌ Only the host can start")
-
-        if(game.mode === "multi"){
-            const result = startGame(chat, sender)
-            if(result !== "started") return message.reply("⚠️ Could not start game")
-        }
-
-        await message.reply("🔤 Fetching word...")
-
-        try {
-
-            // fix: 8 second timeout on word API
-            const res = await fetchWithTimeout(
-                "https://random-word-api.herokuapp.com/word",
-                8000
-            )
-
-            if(!res.ok) throw new Error("API error")
-
-            const data = await res.json()
-
-            if(!data || !data[0]) throw new Error("Empty response")
-
-            const word = data[0]
-
-            // scramble with up to 10 attempts to get a different arrangement
-            let scrambled = word
-            for(let i = 0; i < 10; i++){
-                const temp = word.split("").sort(() => Math.random() - 0.5).join("")
-                if(temp !== word){
-                    scrambled = temp
-                    break
-                }
-            }
-
-            game.data.word = word
-
-            await message.reply(`🔤 Unscramble this word:\n\n*${scrambled}*\n\n_Type your answer_`)
-
-        } catch(err) {
-
-            endGame(chat)
-
-            if(err.name === "AbortError"){
-                console.error("Scramble fetch timed out")
-                return message.reply("❌ Word API timed out. Try .scramble again.")
-            }
-
-            console.error("Scramble fetch error:", err.message)
-            return message.reply("❌ Failed to fetch word. Game cancelled.")
-        }
-
+        const game = games[chat]
+        if(!game.data) game.data = {}
+        await fetchWord(message, game, chat, group)
         return
     }
 
-    /* GAME INPUT */
-    if(!game.started) return
+    let game = games[chat]
+    if(!game) return
+    if(!game.data) game.data = {}
 
-    if(!game.data.word){
-        return message.reply("⏳ Waiting for the game to start...")
+    /* HELP */
+    if(input === ".help"){
+        if(!game.started){
+            return message.reply(
+`🔤 *Scramble Lobby Commands*
+*.join* — join
+*.start* — begin (host only)
+*.end* — cancel`)
+        }
+        return message.reply(
+`🔤 *Scramble Commands*
+Type the correct word to win
+*.hint* — first letter & length
+*.end* — quit`)
     }
 
+    /* JOIN */
+    if(input === ".join"){
+        if(!group) return message.reply("❌ Join is only for group multiplayer games")
+        if(game.players.includes(sender))
+            return message.reply(`⚠️ @${getName(sender)} you already joined!`, { mentions: [sender] })
+
+        const result = joinGame(chat, sender)
+        if(result === "player-limit")    return message.reply("❌ Game is full")
+        if(result === "already-started") return message.reply("❌ Game already started")
+
+        return message.reply(
+`✅ @${getName(sender)} joined! (${game.players.length} players)
+
+@${getName(game.host)} send *.start* when ready`,
+        { mentions: [sender, game.host] }
+        )
+    }
+
+    /* START */
+    if(input === ".start"){
+        if(sender !== game.host)
+            return message.reply(
+                group ? `❌ Only @${getName(game.host)} can start` : "❌ Only the host can start",
+                group ? { mentions: [game.host] } : {}
+            )
+        if(game.mode === "multi" && game.players.length < 2)
+            return message.reply("❌ Need at least 2 players — others should send *.join* first")
+
+        const result = startGame(chat, sender)
+        if(result !== "started") return message.reply("⚠️ Could not start")
+
+        await fetchWord(message, game, chat, group)
+        return
+    }
+
+    /* HINT */
+    if(input === ".hint"){
+        if(!game.data.word) return message.reply("⏳ Game hasn't started yet")
+        return message.reply(
+`💡 *Hint:*
+First letter: *${game.data.word[0].toUpperCase()}*
+Word length: *${game.data.word.length} letters*`)
+    }
+
+    if(!game.started) return
+    if(!game.data.word) return
+    if(input.startsWith(".")) return
     if(game.mode === "multi" && !game.players.includes(sender)) return
 
-    if(input.startsWith(".")) return
-
+    /* CHECK ANSWER */
     if(input === game.data.word){
         await message.reply(
-            `🎉 ${sender.split("@")[0]} solved it!\nWord: *${game.data.word}*`
+            group
+                ? `🎉 @${getName(sender)} solved it!\nWord: *${game.data.word}*\n\nType *.scramble* to play again`
+                : `🎉 Correct!\nWord: *${game.data.word}*\n\nType *.scramble* to play again`,
+            group ? { mentions: [sender] } : {}
         )
         endGame(chat)
+    } else {
+        await message.reply("❌ Not quite — try again!\nType *.hint* if you need help")
     }
-
 }
