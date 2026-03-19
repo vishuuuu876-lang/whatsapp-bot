@@ -4,12 +4,10 @@ import { join } from "path"
 const DATA_DIR  = "./data"
 const USER_FILE = join(DATA_DIR, "users.json")
 
-/* Create data folder if it doesn't exist */
 if(!existsSync(DATA_DIR)){
     mkdirSync(DATA_DIR, { recursive: true })
 }
 
-/* Load existing users from disk */
 function loadUsers() {
     try {
         if(existsSync(USER_FILE)){
@@ -21,7 +19,6 @@ function loadUsers() {
     return {}
 }
 
-/* Save users to disk */
 function saveUsers(users) {
     try {
         writeFileSync(USER_FILE, JSON.stringify(users, null, 2))
@@ -30,12 +27,13 @@ function saveUsers(users) {
     }
 }
 
-/* In-memory store loaded from disk on startup */
 const users = loadUsers()
 
-/* Register a user on every message */
 export function registerUser(message) {
     try {
+        // fix: guard against undefined message.from
+        if(!message || !message.from) return
+
         const id    = message.author || message.from
         const isGrp = message.from.endsWith("@g.us")
         const now   = new Date().toISOString()
@@ -61,24 +59,14 @@ export function registerUser(message) {
     }
 }
 
-/* Get total user count */
 export function getUserCount() {
     return Object.keys(users).length
 }
 
-/* Get all users as array */
 export function getAllUsers() {
     return Object.values(users)
 }
 
-/* Get N most recently active users */
-export function getRecentUsers(n = 10) {
-    return Object.values(users)
-        .sort((a, b) => new Date(b.lastSeen) - new Date(a.lastSeen))
-        .slice(0, n)
-}
-
-/* Summary string for .users command */
 export function getUserSummary() {
     const all      = Object.values(users)
     const total    = all.length
