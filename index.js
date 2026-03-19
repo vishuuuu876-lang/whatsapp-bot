@@ -1,5 +1,6 @@
 import pkg from "whatsapp-web.js"
 const { Client, LocalAuth } = pkg
+import { mkdirSync } from "fs"
 
 import {
     games,
@@ -13,6 +14,10 @@ import {
 
 import { infoSessions }     from "./plugins/info.js"
 import { businessSessions } from "./plugins/business.js"
+import { registerUser }     from "./userstore.js"
+
+/* ensure data directory exists on startup */
+try { mkdirSync("./data", { recursive: true }) } catch{}
 
 console.log("🚀 Starting WhatsApp bot...")
 
@@ -38,8 +43,8 @@ let isReady           = false
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    HELPERS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-function isGroup(message)  { return message.from.endsWith("@g.us") }
-function getSender(message){ return message.author || message.from }
+function isGroup(message)   { return message.from.endsWith("@g.us") }
+function getSender(message) { return message.author || message.from }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    CLIENT SETUP
@@ -133,7 +138,13 @@ client.on("message", async (message) => {
     const sender = getSender(message)
     const group  = isGroup(message)
 
-    console.log(`📨 [${new Date().toTimeString().slice(0,8)}] [${group ? "GROUP" : "DM"}] ${chat.slice(0,20)} → ${message.body.slice(0,60)}`)
+    console.log(`📨 [${new Date().toTimeString().slice(0,8)}] [${group ? "GROUP" : "DM"}] → ${message.body.slice(0,60)}`)
+
+    /* ── REGISTER USER ──────────────────────────────
+       Save every person who interacts with the bot.
+       Runs silently on every message, never blocks.
+    ─────────────────────────────────────────────── */
+    try { registerUser(sender, chat, group) } catch{}
 
     /* INFO SESSION */
     if(infoSessions[chat] && !message.body.startsWith(".")){
@@ -157,7 +168,7 @@ client.on("message", async (message) => {
         return
     }
 
-    /* FORCE END — works inside any active game in both group and DM */
+    /* FORCE END — works inside any active game */
     if(message.body.toLowerCase().trim() === ".end"){
         const wasRunning = endGame(chat)
         if(wasRunning) return message.reply("🛑 Game ended\n\nType *.menu* to see all commands")
