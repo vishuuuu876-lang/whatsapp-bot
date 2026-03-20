@@ -1,5 +1,5 @@
 import { games, createGame, startGame, endGame } from "../games/engine.js"
-import { send, isGroup, getSender, getName } from "../gameHelpers.js"
+import { send, isGroup, getSender, getName } from "../helpers.js"
 
 function checkWinner(board, mark) {
     const wins = [
