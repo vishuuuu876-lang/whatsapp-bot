@@ -1,7 +1,3 @@
-/**
- * Shared helpers used across all plugins
- */
-
 /* Check if message is from a group chat */
 export function isGroup(message) {
     return message.from.endsWith("@g.us")
@@ -17,11 +13,7 @@ export function getName(id) {
     return id.split("@")[0]
 }
 
-/**
- * Safe send with mentions
- * Uses client.sendMessage for groups (supports mentions)
- * Uses message.reply for DMs (no mention support)
- */
+/* Safe send — uses client.sendMessage for group mentions, message.reply for DMs */
 export async function send(client, message, text, mentionIds, group) {
     try {
         if(group && mentionIds && mentionIds.length > 0){
