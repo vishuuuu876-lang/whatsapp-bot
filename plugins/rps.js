@@ -1,12 +1,7 @@
 import { games, createGame, joinGame, startGame, endGame } from "../games/engine.js"
-import { isGroup, getSender, getName } from "../helpers.js"
+import { send, isGroup, getSender, getName } from "../gameHelpers.js"
 
 const pendingMode = {}
-
-/* fix: only pass mentions in group chats — crashes in DM */
-function replyOpts(group, mentions) {
-    return group ? { mentions } : {}
-}
 
 export default async function(client, message, args){
 
@@ -21,7 +16,6 @@ export default async function(client, message, args){
             // mode passed directly — skip menu
         } else {
             pendingMode[chat] = true
-
             if(group){
                 return message.reply(
 `✊ *Rock Paper Scissors*
@@ -89,7 +83,7 @@ Type *.rps* again to play solo.`)
         createGame(chat, "rps", sender, mode)
 
         if(mode === "multi"){
-            return message.reply(
+            await send(client, message,
 `✊ *RPS — Multiplayer*
 Started by @${getName(sender)}
 
@@ -99,8 +93,8 @@ Started by @${getName(sender)}
 🕹 *.end* — cancel
 🕹 *.help* — commands
 ━━━━━━━━━━━━━━`,
-            replyOpts(group, [sender])
-            )
+            [sender])
+            return
         }
 
         startGame(chat, sender)
@@ -136,8 +130,10 @@ Send your choice:
     /* JOIN */
     if(input === ".join"){
         if(!group) return message.reply("❌ Join is only for group multiplayer games")
-        if(game.players.includes(sender))
-            return message.reply(`⚠️ @${getName(sender)} you already joined!`, replyOpts(group, [sender]))
+        if(game.players.includes(sender)){
+            await send(client, message, `⚠️ @${getName(sender)} you already joined!`, [sender])
+            return
+        }
         if(game.players.length >= 2)
             return message.reply("❌ Game is full — only 2 players allowed")
 
@@ -145,23 +141,24 @@ Send your choice:
         if(result === "already-started") return message.reply("❌ Game already started")
 
         const ready = game.players.length === 2
-        return message.reply(
+        await send(client, message,
 `✅ @${getName(sender)} joined! (${game.players.length}/2)
 
 ${ready
     ? `Both players ready!\n@${getName(game.host)} send *.start* to begin`
     : "Waiting for one more player..."}`,
-        replyOpts(group, ready ? [sender, game.host] : [sender])
-        )
+        ready ? [sender, game.host] : [sender])
+        return
     }
 
     /* START */
     if(input === ".start"){
-        if(sender !== game.host)
-            return message.reply(
+        if(sender !== game.host){
+            await send(client, message,
                 group ? `❌ Only @${getName(game.host)} can start` : "❌ Only the host can start",
-                replyOpts(group, [game.host])
-            )
+                [game.host])
+            return
+        }
         if(game.mode === "multi" && game.players.length < 2)
             return message.reply("❌ Need 2 players — someone send *.join* first")
 
@@ -169,17 +166,18 @@ ${ready
         if(result !== "started") return message.reply("⚠️ Could not start")
 
         if(group){
-            return message.reply(
+            await send(client, message,
 `✊ *Game Started!*
 
 @${getName(game.players[0])} vs @${getName(game.players[1])}
 
 Both send: *rock* / *paper* / *scissors*
 _*.end* — quit_`,
-            replyOpts(group, game.players)
-            )
+            game.players)
+        } else {
+            await message.reply(`✊ *Game Started!*\n\nSend: *rock* / *paper* / *scissors*`)
         }
-        return message.reply(`✊ *Game Started!*\n\nSend: *rock* / *paper* / *scissors*`)
+        return
     }
 
     if(!game.started) return
@@ -206,10 +204,9 @@ _*.end* — quit_`,
         } else {
             result = "🤖 *Bot wins!*"
         }
-        await message.reply(
+        await send(client, message,
             `${result}\nYou: ${input} | Bot: ${bot}\n\nType *.rps* to play again`,
-            replyOpts(group, [sender])
-        )
+            [sender])
         endGame(chat)
         return
     }
@@ -217,11 +214,15 @@ _*.end* — quit_`,
     /* MULTIPLAYER */
     if(!game.data) game.data = {}
 
-    if(game.data[sender])
-        return message.reply(`⏳ @${getName(sender)} already locked in — waiting for opponent`, replyOpts(group, [sender]))
+    if(game.data[sender]){
+        await send(client, message,
+            `⏳ @${getName(sender)} already locked in — waiting for opponent`,
+            [sender])
+        return
+    }
 
     game.data[sender] = input
-    await message.reply(`✅ @${getName(sender)} locked in 🔒`, replyOpts(group, [sender]))
+    await send(client, message, `✅ @${getName(sender)} locked in 🔒`, [sender])
 
     if(Object.keys(game.data).length < 2) return
 
@@ -240,7 +241,7 @@ _*.end* — quit_`,
         outcome = `🏆 @${getName(players[1])} wins!`
     }
 
-    await message.reply(
+    await send(client, message,
 `✊ *RPS Result*
 
 @${getName(players[0])}: ${p1}
@@ -249,8 +250,7 @@ _*.end* — quit_`,
 ${outcome}
 
 Type *.rps* to play again`,
-    replyOpts(group, players)
-    )
+    players)
 
     endGame(chat)
 }
