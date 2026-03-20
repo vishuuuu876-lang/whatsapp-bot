@@ -1,5 +1,5 @@
 import { games, createGame, joinGame, startGame, endGame } from "../games/engine.js"
-import { send, isGroup, getSender, getName } from "../gameHelpers.js"
+import { send, isGroup, getSender, getName } from "../helpers.js"
 
 const pendingMode = {}
 
