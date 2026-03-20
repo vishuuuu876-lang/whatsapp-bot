@@ -1,12 +1,7 @@
 import { games, createGame, joinGame, startGame, endGame } from "../games/engine.js"
-import { isGroup, getSender, getName } from "../helpers.js"
+import { send, isGroup, getSender, getName } from "../gameHelpers.js"
 
 const pendingMode = {}
-
-/* fix: only pass mentions in group chats — crashes in DM */
-function replyOpts(group, mentions) {
-    return group ? { mentions } : {}
-}
 
 function decodeHTML(str) {
     return str
@@ -137,7 +132,7 @@ Type *.quiz* again to play solo.`)
         createGame(chat, "quiz", sender, mode)
 
         if(mode === "multi"){
-            return message.reply(
+            await send(client, message,
 `🧠 *Quiz — Multiplayer*
 Started by @${getName(sender)}
 
@@ -148,8 +143,8 @@ Started by @${getName(sender)}
 
 _First to answer each question wins the round!_
 ━━━━━━━━━━━━━━`,
-            replyOpts(group, [sender])
-            )
+            [sender])
+            return
         }
 
         startGame(chat, sender)
@@ -170,27 +165,29 @@ _Send any message to get your first question!_`)
     /* JOIN */
     if(input === ".join"){
         if(!group) return message.reply("❌ Join is only for group multiplayer games")
-        if(game.players.includes(sender))
-            return message.reply(`⚠️ @${getName(sender)} you already joined!`, replyOpts(group, [sender]))
-
+        if(game.players.includes(sender)){
+            await send(client, message, `⚠️ @${getName(sender)} you already joined!`, [sender])
+            return
+        }
         const result = joinGame(chat, sender)
         if(result === "already-started") return message.reply("❌ Quiz already started")
 
-        return message.reply(
+        await send(client, message,
 `✅ @${getName(sender)} joined! (${game.players.length} players)
 
 @${getName(game.host)} send *.start* when everyone is in`,
-        replyOpts(group, [sender, game.host])
-        )
+        [sender, game.host])
+        return
     }
 
     /* START */
     if(input === ".start"){
-        if(sender !== game.host)
-            return message.reply(
+        if(sender !== game.host){
+            await send(client, message,
                 group ? `❌ Only @${getName(game.host)} can start` : "❌ Only the host can start",
-                replyOpts(group, [game.host])
-            )
+                [game.host])
+            return
+        }
         if(game.mode === "multi" && game.players.length < 2)
             return message.reply("❌ Need at least 2 players — others should send *.join* first")
 
@@ -198,7 +195,7 @@ _Send any message to get your first question!_`)
         if(result !== "started") return message.reply("⚠️ Could not start")
 
         const names = game.players.map(p => `@${getName(p)}`).join(", ")
-        await message.reply(
+        await send(client, message,
 `🧠 *Quiz Started!*
 
 Players: ${names}
@@ -207,8 +204,7 @@ First to answer each question wins the round!
 *.restart* — skip | *.end* — quit
 
 _Send any message to load first question!_`,
-        replyOpts(group, game.players)
-        )
+        game.players)
         return
     }
 
@@ -281,12 +277,11 @@ Type your answer to submit
 
     /* CHECK ANSWER */
     if(input === game.data.answer){
-        await message.reply(
+        await send(client, message,
             group
                 ? `🎉 @${getName(sender)} got it right!\n✅ Answer: ${game.data.answer}\n\n_Send any message for next question_`
                 : `🎉 Correct!\n✅ Answer: ${game.data.answer}\n\n_Send any message for next question_`,
-            replyOpts(group, [sender])
-        )
+            [sender])
         game.data.answer = null
     } else {
         return message.reply("❌ Wrong answer — try again!\nType *.help* for commands")
