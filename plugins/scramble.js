@@ -1,12 +1,7 @@
 import { games, createGame, joinGame, startGame, endGame } from "../games/engine.js"
-import { isGroup, getSender, getName } from "../helpers.js"
+import { send, isGroup, getSender, getName } from "../gameHelpers.js"
 
 const pendingMode = {}
-
-/* fix: only pass mentions in group chats — crashes in DM */
-function replyOpts(group, mentions) {
-    return group ? { mentions } : {}
-}
 
 async function fetchWithTimeout(url, timeoutMs = 8000) {
     const controller = new AbortController()
@@ -19,7 +14,8 @@ async function fetchWithTimeout(url, timeoutMs = 8000) {
     }
 }
 
-async function fetchWord(message, game, chat, group) {
+async function fetchWord(client, message, game, chat) {
+    const group = isGroup(message)
     await message.reply("🔤 Fetching word...")
     try {
         const res = await fetchWithTimeout("https://random-word-api.herokuapp.com/word", 8000)
@@ -137,7 +133,7 @@ Type *.scramble* again to play solo.`)
         createGame(chat, "scramble", sender, mode)
 
         if(mode === "multi"){
-            return message.reply(
+            await send(client, message,
 `🔤 *Word Scramble — Multiplayer*
 Started by @${getName(sender)}
 
@@ -146,14 +142,14 @@ Started by @${getName(sender)}
 🕹 *.start* — begin (host only)
 🕹 *.end* — cancel
 ━━━━━━━━━━━━━━`,
-            replyOpts(group, [sender])
-            )
+            [sender])
+            return
         }
 
         startGame(chat, sender)
         const game = games[chat]
         if(!game.data) game.data = {}
-        await fetchWord(message, game, chat, group)
+        await fetchWord(client, message, game, chat)
         return
     }
 
@@ -180,35 +176,37 @@ Type the correct word to win
     /* JOIN */
     if(input === ".join"){
         if(!group) return message.reply("❌ Join is only for group multiplayer games")
-        if(game.players.includes(sender))
-            return message.reply(`⚠️ @${getName(sender)} you already joined!`, replyOpts(group, [sender]))
-
+        if(game.players.includes(sender)){
+            await send(client, message, `⚠️ @${getName(sender)} you already joined!`, [sender])
+            return
+        }
         const result = joinGame(chat, sender)
         if(result === "player-limit")    return message.reply("❌ Game is full")
         if(result === "already-started") return message.reply("❌ Game already started")
 
-        return message.reply(
+        await send(client, message,
 `✅ @${getName(sender)} joined! (${game.players.length} players)
 
 @${getName(game.host)} send *.start* when ready`,
-        replyOpts(group, [sender, game.host])
-        )
+        [sender, game.host])
+        return
     }
 
     /* START */
     if(input === ".start"){
-        if(sender !== game.host)
-            return message.reply(
+        if(sender !== game.host){
+            await send(client, message,
                 group ? `❌ Only @${getName(game.host)} can start` : "❌ Only the host can start",
-                replyOpts(group, [game.host])
-            )
+                [game.host])
+            return
+        }
         if(game.mode === "multi" && game.players.length < 2)
             return message.reply("❌ Need at least 2 players — others should send *.join* first")
 
         const result = startGame(chat, sender)
         if(result !== "started") return message.reply("⚠️ Could not start")
 
-        await fetchWord(message, game, chat, group)
+        await fetchWord(client, message, game, chat)
         return
     }
 
@@ -228,14 +226,13 @@ Word length: *${game.data.word.length} letters*`)
 
     /* CHECK ANSWER */
     if(input === game.data.word){
-        await message.reply(
+        await send(client, message,
             group
                 ? `🎉 @${getName(sender)} solved it!\nWord: *${game.data.word}*\n\nType *.scramble* to play again`
                 : `🎉 Correct!\nWord: *${game.data.word}*\n\nType *.scramble* to play again`,
-            replyOpts(group, [sender])
-        )
+            [sender])
         endGame(chat)
     } else {
         await message.reply("❌ Not quite — try again!\nType *.hint* if you need help")
     }
-}
+                                                      }
