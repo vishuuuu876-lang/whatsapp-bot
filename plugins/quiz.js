@@ -1,28 +1,17 @@
 import { games, createGame, joinGame, startGame, endGame } from "../games/engine.js"
-import { send, isGroup, getSender, getName } from "../helpers.js"
+import { isGroup, getSender, getName, send } from "../helpers.js"
 
-const pendingMode = {}
+export const pendingMode = {}
 
 function decodeHTML(str) {
-    return str
-        .replace(/&amp;/g,   "&")
-        .replace(/&lt;/g,    "<")
-        .replace(/&gt;/g,    ">")
-        .replace(/&quot;/g,  '"')
-        .replace(/&#039;/g,  "'")
-        .replace(/&ldquo;/g, "\u201C")
-        .replace(/&rdquo;/g, "\u201D")
+    return str.replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&#039;/g,"'").replace(/&ldquo;/g,"\u201C").replace(/&rdquo;/g,"\u201D")
 }
 
-async function fetchWithTimeout(url, timeoutMs = 8000) {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), timeoutMs)
-    try {
-        const res = await fetch(url, { signal: controller.signal })
-        return res
-    } finally {
-        clearTimeout(timer)
-    }
+async function fetchWithTimeout(url, ms = 8000) {
+    const ctrl = new AbortController()
+    const t = setTimeout(() => ctrl.abort(), ms)
+    try { return await fetch(url, { signal: ctrl.signal }) }
+    finally { clearTimeout(t) }
 }
 
 export default async function(client, message, args){
@@ -32,258 +21,102 @@ export default async function(client, message, args){
     const sender = getSender(message)
     const group  = isGroup(message)
 
-    /* ALWAYS-ON COMMANDS */
-    if(input === ".exit" || input === ".end"){
-        delete pendingMode[chat]
-        endGame(chat)
-        return message.reply("❌ Quiz ended\n\nType *.quiz* to play again")
-    }
+    if(input===".exit"||input===".end"){ delete pendingMode[chat]; endGame(chat); return message.reply("❌ Quiz ended\n\nType *.quiz* to play again") }
+    if(input===".restart"&&games[chat]){ games[chat].data={}; return message.reply("🔄 Skipped — send any message for next question") }
+    if(input===".help") return message.reply(games[chat]&&!games[chat].started ? `🧠 *.join* *.start* *.end*` : `🧠 Type answer | *.restart* skip | *.end* quit`)
 
-    if(input === ".restart" && games[chat]){
-        games[chat].data = {}
-        return message.reply("🔄 Skipped — send any message to get next question")
-    }
-
-    if(input === ".help"){
-        if(games[chat] && !games[chat].started){
-            return message.reply(
-`🧠 *Quiz Lobby Commands*
-*.join* — join the quiz
-*.start* — begin (host only)
-*.end* — cancel`)
-        }
-        return message.reply(
-`🧠 *Quiz Commands*
-Type your answer to submit
-*.restart* — skip question
-*.end* — quit`)
-    }
-
-    /* MODE SELECTION MENU */
     if(!games[chat] && !pendingMode[chat]){
-        if(args[0] === "single" || args[0] === "multi" || args[0] === "solo"){
+        if(args[0]==="single"||args[0]==="multi"){
             // skip menu
         } else {
-            pendingMode[chat] = true
-            if(group){
-                return message.reply(
-`🧠 *Quiz*
-
-Choose a mode:
-
-1️⃣ *Single player* — solo trivia
-2️⃣ *Multiplayer* — race with group members
-
-_Reply 1 or 2 — Reply 0 to cancel_`)
-            } else {
-                return message.reply(
-`🧠 *Quiz*
-
-1️⃣ *Single player* — solo trivia challenge
-
-_Multiplayer is only available in group chats_
-_Reply 1 to start — Reply 0 to cancel_`)
-            }
+            pendingMode[chat] = { type: "quiz" }
+            return message.reply(group
+                ? `🧠 *Quiz*\n\n1️⃣ Single player\n2️⃣ Multiplayer\n\nReply 1 or 2 | 0 to cancel`
+                : `🧠 *Quiz*\n\n1️⃣ Single player\n\n_Multiplayer only in groups_\nReply 1 | 0 to cancel`)
         }
     }
 
-    /* HANDLE MODE REPLY */
-    if(pendingMode[chat] && !games[chat]){
-        if(input === "0"){
+    if(pendingMode[chat]?.type==="quiz" && !games[chat]){
+        if(input==="0"){ delete pendingMode[chat]; return message.reply("👋 Cancelled") }
+        else if(input==="1"||input==="single"){ delete pendingMode[chat]; args[0]="single" }
+        else if(input==="2"||input==="multi"){
             delete pendingMode[chat]
-            return message.reply("👋 Cancelled")
-        } else if(input === "1" || input === "single" || input === "solo"){
-            delete pendingMode[chat]
-            args[0] = "single"
-        } else if(input === "2" || input === "multi"){
-            delete pendingMode[chat]
-            if(!group){
-                return message.reply(
-`⚠️ *Multiplayer is only available in group chats!*
-
-Add the bot to a WhatsApp group to compete with friends.
-Reply *1* to play solo instead, or *0* to cancel`)
-            }
-            args[0] = "multi"
-        } else if(input.startsWith(".")){
-            delete pendingMode[chat]
-        } else {
-            return message.reply(
-                group
-                    ? "⚠️ Reply *1* for single or *2* for multiplayer\nReply *0* to cancel"
-                    : "⚠️ Reply *1* to play solo\nReply *0* to cancel"
-            )
-        }
+            if(!group) return message.reply("⚠️ Multiplayer only in groups!\nReply 1 for solo or 0 to cancel")
+            args[0]="multi"
+        } else if(input.startsWith(".")){ delete pendingMode[chat] }
+        else return message.reply("⚠️ Reply 1 or 2 | 0 to cancel")
     }
 
-    const mode = args[0] === "solo" ? "single" : (args[0] || "single")
+    const mode = args[0] || "single"
 
-    /* CREATE GAME */
-    if(!games[chat] && (mode === "single" || mode === "multi")){
-
-        if(mode === "multi" && !group){
-            return message.reply(
-`⚠️ *Multiplayer only works in group chats!*
-
-Add the bot to a group to compete with friends.
-Type *.quiz* again to play solo.`)
-        }
-
+    if(!games[chat] && (mode==="single"||mode==="multi")){
+        if(mode==="multi"&&!group) return message.reply("⚠️ Multiplayer only in group chats!")
         createGame(chat, "quiz", sender, mode)
-
-        if(mode === "multi"){
-            await send(client, message,
-`🧠 *Quiz — Multiplayer*
-Started by @${getName(sender)}
-
-━━━━━━━━━━━━━━
-🕹 *.join* — join the quiz
-🕹 *.start* — begin (host only)
-🕹 *.end* — cancel
-
-_First to answer each question wins the round!_
-━━━━━━━━━━━━━━`,
-            [sender])
+        if(mode==="multi"){
+            await send(client, message, `🧠 *Quiz Multiplayer*\nBy @${getName(sender)}\n\n*.join* *.start* *.end*\n_First to answer wins!_`, [sender], group)
             return
         }
-
         startGame(chat, sender)
-        return message.reply(
-`🧠 *Quiz — Solo Mode*
-
-━━━━━━━━━━━━━━
-🕹 *.restart* — skip question
-🕹 *.end* — quit
-━━━━━━━━━━━━━━
-_Send any message to get your first question!_`)
+        return message.reply(`🧠 *Quiz — Solo*\n\n*.restart* skip | *.end* quit\n\n_Send any message to get first question!_`)
     }
 
     let game = games[chat]
     if(!game) return
     if(!game.data) game.data = {}
 
-    /* JOIN */
-    if(input === ".join"){
-        if(!group) return message.reply("❌ Join is only for group multiplayer games")
-        if(game.players.includes(sender)){
-            await send(client, message, `⚠️ @${getName(sender)} you already joined!`, [sender])
-            return
-        }
+    if(input===".join"){
+        if(!group) return message.reply("❌ Join is for group multiplayer only")
+        if(game.players.includes(sender)) return send(client, message, `⚠️ @${getName(sender)} already joined!`, [sender], group)
         const result = joinGame(chat, sender)
-        if(result === "already-started") return message.reply("❌ Quiz already started")
-
-        await send(client, message,
-`✅ @${getName(sender)} joined! (${game.players.length} players)
-
-@${getName(game.host)} send *.start* when everyone is in`,
-        [sender, game.host])
+        if(result==="already-started") return message.reply("❌ Already started")
+        await send(client, message, `✅ @${getName(sender)} joined! (${game.players.length})\n@${getName(game.host)} send *.start* when ready`, [sender, game.host], group)
         return
     }
 
-    /* START */
-    if(input === ".start"){
-        if(sender !== game.host){
-            await send(client, message,
-                group ? `❌ Only @${getName(game.host)} can start` : "❌ Only the host can start",
-                [game.host])
-            return
-        }
-        if(game.mode === "multi" && game.players.length < 2)
-            return message.reply("❌ Need at least 2 players — others should send *.join* first")
-
+    if(input===".start"){
+        if(sender!==game.host) return send(client, message, group?`❌ Only @${getName(game.host)} can start`:"❌ Only host can start", [game.host], group)
+        if(game.mode==="multi"&&game.players.length<2) return message.reply("❌ Need at least 2 players")
         const result = startGame(chat, sender)
-        if(result !== "started") return message.reply("⚠️ Could not start")
-
-        const names = game.players.map(p => `@${getName(p)}`).join(", ")
-        await send(client, message,
-`🧠 *Quiz Started!*
-
-Players: ${names}
-
-First to answer each question wins the round!
-*.restart* — skip | *.end* — quit
-
-_Send any message to load first question!_`,
-        game.players)
+        if(result!=="started") return message.reply("⚠️ Could not start")
+        const names = game.players.map(p=>`@${getName(p)}`).join(", ")
+        await send(client, message, `🧠 *Quiz Started!*\n\nPlayers: ${names}\n\nFirst to answer wins!\n*.restart* skip | *.end* quit\n\n_Send any message for first question!_`, game.players, group)
         return
     }
 
     if(!game.started) return
-    if(game.mode === "multi" && !game.players.includes(sender)) return
+    if(game.mode==="multi"&&!game.players.includes(sender)) return
     if(input.startsWith(".")) return
 
-    /* FETCH QUESTION */
     if(!game.data.answer){
         try {
-
             await message.reply("🧠 Fetching question...")
-
-            const res = await fetchWithTimeout(
-                "https://opentdb.com/api.php?amount=1&type=multiple",
-                8000
-            )
-
-            if(!res.ok){
-                endGame(chat)
-                return message.reply("❌ Quiz API unavailable. Try *.quiz* again.")
-            }
-
+            const res = await fetchWithTimeout("https://opentdb.com/api.php?amount=1&type=multiple")
+            if(!res.ok){ endGame(chat); return message.reply("❌ API unavailable. Try *.quiz* again.") }
             const data = await res.json()
+            if(data.response_code===5){ endGame(chat); return message.reply("❌ Too many requests. Wait and try *.quiz* again.") }
+            if(!data.results?.length){ endGame(chat); return message.reply("❌ No questions. Try *.quiz* again.") }
 
-            if(data.response_code === 5){
-                endGame(chat)
-                return message.reply("❌ Too many requests. Wait a moment then try *.quiz* again.")
-            }
+            const q = data.results[0]
+            const question = decodeHTML(q.question)
+            const correct  = decodeHTML(q.correct_answer)
+            const wrong    = q.incorrect_answers.map(decodeHTML)
+            game.data.answer = correct.toLowerCase()
+            const options = [...wrong, correct].sort(()=>Math.random()-0.5).map(decodeHTML)
 
-            if(!data.results || !data.results.length){
-                endGame(chat)
-                return message.reply("❌ No questions returned. Try *.quiz* again.")
-            }
-
-            const q             = data.results[0]
-            const question      = decodeHTML(q.question)
-            const correctAnswer = decodeHTML(q.correct_answer)
-            const wrongAnswers  = q.incorrect_answers.map(decodeHTML)
-
-            game.data.answer = correctAnswer.toLowerCase()
-
-            const options = [...wrongAnswers, correctAnswer]
-                .sort(() => Math.random() - 0.5)
-                .map(decodeHTML)
-
-            await message.reply(
-`🧠 *Quiz Question*
-
-${question}
-
-${options.join("\n")}
-
-━━━━━━━━━━━━━━
-Type your answer to submit
-*.restart* — skip | *.end* — quit
-━━━━━━━━━━━━━━`)
-
+            await message.reply(`🧠 *Question*\n\n${question}\n\n${options.join("\n")}\n\n━━━━━━━━━━━━━━\nType answer | *.restart* skip | *.end* quit`)
         } catch(err) {
             endGame(chat)
-            if(err.name === "AbortError"){
-                console.error("Quiz fetch timed out")
-                return message.reply("❌ Quiz API timed out. Try *.quiz* again.")
-            }
-            console.error("Quiz fetch error:", err.message)
-            return message.reply("❌ Failed to fetch question. Try *.quiz* again.")
+            if(err.name==="AbortError") return message.reply("❌ Timed out. Try *.quiz* again.")
+            return message.reply("❌ Failed. Try *.quiz* again.")
         }
         return
     }
 
-    /* CHECK ANSWER */
-    if(input === game.data.answer){
-        await send(client, message,
-            group
-                ? `🎉 @${getName(sender)} got it right!\n✅ Answer: ${game.data.answer}\n\n_Send any message for next question_`
-                : `🎉 Correct!\n✅ Answer: ${game.data.answer}\n\n_Send any message for next question_`,
-            [sender])
+    if(input===game.data.answer){
+        const text = group ? `🎉 @${getName(sender)} got it!\n✅ ${game.data.answer}\n\n_Send any message for next question_` : `🎉 Correct!\n✅ ${game.data.answer}\n\n_Send any message for next question_`
+        await send(client, message, text, [sender], group)
         game.data.answer = null
     } else {
-        return message.reply("❌ Wrong answer — try again!\nType *.help* for commands")
+        return message.reply("❌ Wrong — try again!")
     }
-}
+               }
