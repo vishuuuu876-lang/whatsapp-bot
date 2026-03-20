@@ -1,7 +1,7 @@
 import { games, createGame, joinGame, startGame, endGame } from "../games/engine.js"
-import { send, isGroup, getSender, getName } from "../helpers.js"
+import { isGroup, getSender, getName, send } from "../helpers.js"
 
-const pendingMode = {}
+export const pendingMode = {}
 
 export default async function(client, message, args){
 
@@ -10,247 +10,99 @@ export default async function(client, message, args){
     const sender = getSender(message)
     const group  = isGroup(message)
 
-    /* MODE SELECTION MENU */
+    /* MODE SELECTION */
     if(!games[chat] && !pendingMode[chat]){
-        if(args[0] === "single" || args[0] === "multi" || args[0] === "solo"){
-            // mode passed directly — skip menu
+        if(args[0] === "single" || args[0] === "multi"){
+            // skip menu
         } else {
-            pendingMode[chat] = true
-            if(group){
-                return message.reply(
-`✊ *Rock Paper Scissors*
-
-Choose a mode:
-
-1️⃣ *Single player* — you vs bot
-2️⃣ *Multiplayer* — play with group members
-
-_Reply 1 or 2 — Reply 0 to cancel_`)
-            } else {
-                return message.reply(
-`✊ *Rock Paper Scissors*
-
-1️⃣ *Single player* — you vs bot
-
-_Multiplayer is only available in group chats_
-_Reply 1 to start — Reply 0 to cancel_`)
-            }
+            pendingMode[chat] = { type: "rps" }
+            return message.reply(group
+                ? `✊ *Rock Paper Scissors*\n\n1️⃣ Single player — vs bot\n2️⃣ Multiplayer — with group\n\nReply 1 or 2 | Reply 0 to cancel`
+                : `✊ *Rock Paper Scissors*\n\n1️⃣ Single player — vs bot\n\n_Multiplayer only in groups_\nReply 1 to start | 0 to cancel`)
         }
     }
 
-    /* HANDLE MODE REPLY */
-    if(pendingMode[chat] && !games[chat]){
-        if(input === "0"){
+    if(pendingMode[chat]?.type === "rps" && !games[chat]){
+        if(input === "0"){ delete pendingMode[chat]; return message.reply("👋 Cancelled") }
+        else if(input === "1" || input === "single"){ delete pendingMode[chat]; args[0] = "single" }
+        else if(input === "2" || input === "multi"){
             delete pendingMode[chat]
-            return message.reply("👋 Cancelled")
-        } else if(input === "1" || input === "single" || input === "solo"){
-            delete pendingMode[chat]
-            args[0] = "single"
-        } else if(input === "2" || input === "multi"){
-            delete pendingMode[chat]
-            if(!group){
-                return message.reply(
-`⚠️ *Multiplayer is only available in group chats!*
-
-Add the bot to a WhatsApp group to play with friends.
-Reply *1* to play solo instead, or *0* to cancel`)
-            }
+            if(!group) return message.reply("⚠️ Multiplayer only in group chats!\nReply 1 for solo or 0 to cancel")
             args[0] = "multi"
-        } else if(input.startsWith(".")){
-            delete pendingMode[chat]
-        } else {
-            return message.reply(
-                group
-                    ? "⚠️ Reply *1* for single or *2* for multiplayer\nReply *0* to cancel"
-                    : "⚠️ Reply *1* to play solo\nReply *0* to cancel"
-            )
-        }
+        } else if(input.startsWith(".")){ delete pendingMode[chat] }
+        else return message.reply(group ? "⚠️ Reply 1 or 2\n0 to cancel" : "⚠️ Reply 1 to play\n0 to cancel")
     }
 
-    const mode = args[0] === "solo" ? "single" : (args[0] || "single")
+    const mode = args[0] || "single"
 
-    /* CREATE GAME */
     if(!games[chat] && (mode === "single" || mode === "multi")){
-
-        if(mode === "multi" && !group){
-            return message.reply(
-`⚠️ *Multiplayer only works in group chats!*
-
-Add the bot to a group to play with friends.
-Type *.rps* again to play solo.`)
-        }
-
+        if(mode === "multi" && !group) return message.reply("⚠️ Multiplayer only in group chats!\nType *.rps* to play solo.")
         createGame(chat, "rps", sender, mode)
 
         if(mode === "multi"){
-            await send(client, message,
-`✊ *RPS — Multiplayer*
-Started by @${getName(sender)}
-
-━━━━━━━━━━━━━━
-🕹 *.join* — join the game (need 2 players)
-🕹 *.start* — start (host only)
-🕹 *.end* — cancel
-🕹 *.help* — commands
-━━━━━━━━━━━━━━`,
-            [sender])
+            await send(client, message, `✊ *RPS Multiplayer*\nStarted by @${getName(sender)}\n\n*.join* — join\n*.start* — start (host)\n*.end* — cancel`, [sender], group)
             return
         }
-
         startGame(chat, sender)
-        return message.reply(
-`✊ *Rock Paper Scissors — vs Bot*
-
-━━━━━━━━━━━━━━
-Send your choice:
-*rock* / *paper* / *scissors*
-
-🕹 *.help* — commands | *.end* — quit
-━━━━━━━━━━━━━━`)
+        return message.reply(`✊ *RPS vs Bot*\n\nSend: *rock* / *paper* / *scissors*\n*.end* to quit`)
     }
 
     let game = games[chat]
     if(!game) return
 
-    /* HELP */
-    if(input === ".help"){
-        if(!game.started){
-            return message.reply(
-`✊ *RPS Lobby Commands*
-*.join* — join the game
-*.start* — start (host only, needs 2 players)
-*.end* — cancel`)
-        }
-        return message.reply(
-`✊ *RPS Commands*
-*rock* / *paper* / *scissors* — make your move
-*.end* — quit`)
-    }
+    if(input === ".help") return message.reply(game.started ? `✊ *rock* / *paper* / *scissors*\n*.end* quit` : `✊ *.join* *.start* *.end*`)
 
-    /* JOIN */
     if(input === ".join"){
-        if(!group) return message.reply("❌ Join is only for group multiplayer games")
-        if(game.players.includes(sender)){
-            await send(client, message, `⚠️ @${getName(sender)} you already joined!`, [sender])
-            return
-        }
-        if(game.players.length >= 2)
-            return message.reply("❌ Game is full — only 2 players allowed")
-
+        if(!group) return message.reply("❌ Join is for group multiplayer only")
+        if(game.players.includes(sender)) return send(client, message, `⚠️ @${getName(sender)} already joined!`, [sender], group)
+        if(game.players.length >= 2) return message.reply("❌ Game is full")
         const result = joinGame(chat, sender)
-        if(result === "already-started") return message.reply("❌ Game already started")
-
+        if(result === "already-started") return message.reply("❌ Already started")
         const ready = game.players.length === 2
-        await send(client, message,
-`✅ @${getName(sender)} joined! (${game.players.length}/2)
-
-${ready
-    ? `Both players ready!\n@${getName(game.host)} send *.start* to begin`
-    : "Waiting for one more player..."}`,
-        ready ? [sender, game.host] : [sender])
+        await send(client, message, `✅ @${getName(sender)} joined! (${game.players.length}/2)\n${ready ? `Both ready! @${getName(game.host)} send *.start*` : "Waiting for one more..."}`, ready ? [sender, game.host] : [sender], group)
         return
     }
 
-    /* START */
     if(input === ".start"){
-        if(sender !== game.host){
-            await send(client, message,
-                group ? `❌ Only @${getName(game.host)} can start` : "❌ Only the host can start",
-                [game.host])
-            return
-        }
-        if(game.mode === "multi" && game.players.length < 2)
-            return message.reply("❌ Need 2 players — someone send *.join* first")
-
+        if(sender !== game.host) return send(client, message, group ? `❌ Only @${getName(game.host)} can start` : "❌ Only host can start", [game.host], group)
+        if(game.mode === "multi" && game.players.length < 2) return message.reply("❌ Need 2 players first")
         const result = startGame(chat, sender)
         if(result !== "started") return message.reply("⚠️ Could not start")
-
-        if(group){
-            await send(client, message,
-`✊ *Game Started!*
-
-@${getName(game.players[0])} vs @${getName(game.players[1])}
-
-Both send: *rock* / *paper* / *scissors*
-_*.end* — quit_`,
-            game.players)
-        } else {
-            await message.reply(`✊ *Game Started!*\n\nSend: *rock* / *paper* / *scissors*`)
-        }
+        if(group) await send(client, message, `✊ *Started!*\n@${getName(game.players[0])} vs @${getName(game.players[1])}\n\nBoth send: *rock* / *paper* / *scissors*`, game.players, group)
+        else await message.reply(`✊ *Started!*\nSend: *rock* / *paper* / *scissors*`)
         return
     }
 
     if(!game.started) return
     if(game.mode === "multi" && !game.players.includes(sender)) return
 
-    const options = ["rock", "paper", "scissors"]
+    const options = ["rock","paper","scissors"]
+    if(!options.includes(input)) return message.reply("❌ Send *rock*, *paper* or *scissors*")
 
-    if(!options.includes(input))
-        return message.reply("❌ Send *rock*, *paper* or *scissors*\nType *.help* for commands")
-
-    /* SINGLE PLAYER */
     if(game.mode === "single"){
         if(group && sender !== game.host) return
-        const bot = options[Math.floor(Math.random() * 3)]
+        const bot = options[Math.floor(Math.random()*3)]
         let result
-        if(input === bot){
-            result = "🤝 *Draw!*"
-        } else if(
-            (input === "rock"     && bot === "scissors") ||
-            (input === "paper"    && bot === "rock")     ||
-            (input === "scissors" && bot === "paper")
-        ){
-            result = group ? `🎉 @${getName(sender)} wins!` : "🎉 *You win!*"
-        } else {
-            result = "🤖 *Bot wins!*"
-        }
-        await send(client, message,
-            `${result}\nYou: ${input} | Bot: ${bot}\n\nType *.rps* to play again`,
-            [sender])
-        endGame(chat)
-        return
+        if(input === bot) result = "🤝 Draw!"
+        else if((input==="rock"&&bot==="scissors")||(input==="paper"&&bot==="rock")||(input==="scissors"&&bot==="paper"))
+            result = group ? `🎉 @${getName(sender)} wins!` : "🎉 You win!"
+        else result = "🤖 Bot wins!"
+        await send(client, message, `${result}\nYou: ${input} | Bot: ${bot}\n\nType *.rps* again`, [sender], group)
+        endGame(chat); return
     }
 
-    /* MULTIPLAYER */
     if(!game.data) game.data = {}
-
-    if(game.data[sender]){
-        await send(client, message,
-            `⏳ @${getName(sender)} already locked in — waiting for opponent`,
-            [sender])
-        return
-    }
-
+    if(game.data[sender]) return send(client, message, `⏳ @${getName(sender)} already locked in`, [sender], group)
     game.data[sender] = input
-    await send(client, message, `✅ @${getName(sender)} locked in 🔒`, [sender])
-
+    await send(client, message, `✅ @${getName(sender)} locked 🔒`, [sender], group)
     if(Object.keys(game.data).length < 2) return
 
     const players = Object.keys(game.data)
-    const p1      = game.data[players[0]]
-    const p2      = game.data[players[1]]
+    const p1 = game.data[players[0]], p2 = game.data[players[1]]
+    let outcome = "🤝 Draw!"
+    if((p1==="rock"&&p2==="scissors")||(p1==="paper"&&p2==="rock")||(p1==="scissors"&&p2==="paper")) outcome = `🏆 @${getName(players[0])} wins!`
+    else if(p1!==p2) outcome = `🏆 @${getName(players[1])} wins!`
 
-    let outcome = "🤝 *Draw!*"
-    if(
-        (p1 === "rock"     && p2 === "scissors") ||
-        (p1 === "paper"    && p2 === "rock")     ||
-        (p1 === "scissors" && p2 === "paper")
-    ){
-        outcome = `🏆 @${getName(players[0])} wins!`
-    } else if(p1 !== p2){
-        outcome = `🏆 @${getName(players[1])} wins!`
-    }
-
-    await send(client, message,
-`✊ *RPS Result*
-
-@${getName(players[0])}: ${p1}
-@${getName(players[1])}: ${p2}
-
-${outcome}
-
-Type *.rps* to play again`,
-    players)
-
+    await send(client, message, `✊ *Result*\n@${getName(players[0])}: ${p1}\n@${getName(players[1])}: ${p2}\n\n${outcome}\n\nType *.rps* again`, players, group)
     endGame(chat)
 }
