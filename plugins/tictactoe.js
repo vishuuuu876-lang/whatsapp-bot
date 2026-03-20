@@ -1,5 +1,5 @@
 import { games, createGame, startGame, endGame } from "../games/engine.js"
-import { isGroup, getSender, getName } from "../helpers.js"
+import { send, isGroup, getSender, getName } from "../gameHelpers.js"
 
 function checkWinner(board, mark) {
     const wins = [
@@ -41,7 +41,7 @@ export default async function(client, message, args){
             ? `@${getName(sender)} ✖ vs 🤖 Bot`
             : `You ✖ vs 🤖 Bot`
 
-        const text =
+        await send(client, message,
 `🎮 *Tic Tac Toe*
 ${header}
 
@@ -52,13 +52,8 @@ ${formatBoard(game.data.board)}
 🕹 *.restart* — reset board
 🕹 *.help* — show commands
 🕹 *.end* — quit game
-━━━━━━━━━━━━━━`
-
-        if(group){
-            await message.reply(text, { mentions: [sender] })
-        } else {
-            await message.reply(text)
-        }
+━━━━━━━━━━━━━━`,
+        [sender])
         return
     }
 
@@ -66,8 +61,9 @@ ${formatBoard(game.data.board)}
 
     /* IN GROUP — only the player who started can play */
     if(group && sender !== game.data.player){
-        const text = `⚠️ @${getName(game.data.player)} is currently playing!\nWait for them to finish or type *.end* to cancel`
-        await message.reply(text, { mentions: [game.data.player] })
+        await send(client, message,
+            `⚠️ @${getName(game.data.player)} is currently playing!\nWait for them to finish or type *.end* to cancel`,
+            [game.data.player])
         return
     }
 
@@ -111,11 +107,11 @@ ${formatBoard(game.data?.board || ["1","2","3","4","5","6","7","8","9"])}`)
     board[move-1] = "X"
 
     if(checkWinner(board, "X")){
-        if(group){
-            await message.reply(`🎉 @${getName(sender)} wins!\n\n${formatBoard(board)}\n\nType *.tictactoe* to play again`, { mentions: [sender] })
-        } else {
-            await message.reply(`🎉 *You win!*\n\n${formatBoard(board)}\n\nType *.tictactoe* to play again`)
-        }
+        await send(client, message,
+            group
+                ? `🎉 @${getName(sender)} wins!\n\n${formatBoard(board)}\n\nType *.tictactoe* to play again`
+                : `🎉 *You win!*\n\n${formatBoard(board)}\n\nType *.tictactoe* to play again`,
+            [sender])
         endGame(chat)
         return
     }
