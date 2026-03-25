@@ -24,34 +24,30 @@
 // 👉 Put YOUR number here (no +, no spaces)
 export const OWNER_NUMBER = "918088900966"
 
-// In-memory sudo list
 const sudoList = new Set()
 
-/** Clean number → keep only digits */
 export function bareNumber(jid) {
     if (!jid) return ""
     return jid.toString().replace(/[^0-9]/g, "")
 }
 
-/** Check if owner */
 export function isOwner(jid) {
     const num = bareNumber(jid)
 
-    // Debug (optional, remove later)
     console.log("🔍 isOwner check:", num, "==", OWNER_NUMBER)
 
     return num === OWNER_NUMBER
 }
 
-/** Check if sudo (owner always included) */
 export function isSudo(jid) {
     const num = bareNumber(jid)
-    return isOwner(num) || sudoList.has(num)
+
+    return isOwner(jid) || sudoList.has(num)   // ✅ FIXED HERE
 }
 
-/** Add sudo */
 export function addSudo(number) {
     const n = bareNumber(number)
+
     if (!n) return false
     if (sudoList.has(n)) return false
 
@@ -59,15 +55,13 @@ export function addSudo(number) {
     return true
 }
 
-/** Remove sudo */
 export function removeSudo(number) {
     const n = bareNumber(number)
-    if (!n) return false
 
+    if (!n) return false
     return sudoList.delete(n)
 }
 
-/** Get all sudo users */
 export function getSudoList() {
     return [...sudoList]
 }
