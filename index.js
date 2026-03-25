@@ -101,15 +101,16 @@ client.on("message", async (message) => {
 
     if (!isReady || !message.body) return
 
-    const sender = getSender(message)
+    // ✅ Normalize sender correctly
+    const sender = (message.author || message.from || "").toString()
 
-    // Allow only owner to use commands from bot's own account
+    // ✅ Allow bot messages ONLY if owner
     if (message.fromMe && !isOwner(sender)) return
 
-    const chat  = message.from
-    const group = isGroup(message)
-    const body  = message.body.trim()
-    const isCmd = body.startsWith(".")
+    const chat   = message.from
+    const group  = chat.endsWith("@g.us")
+    const body   = message.body.trim()
+    const isCmd  = body.startsWith(".")
 
     console.log(`📨 [${new Date().toTimeString().slice(0,8)}] [${group?"GROUP":"DM"}] → ${body.slice(0,60)}`)
 
