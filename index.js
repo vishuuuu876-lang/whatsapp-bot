@@ -18,9 +18,10 @@ import { pendingMode as rpsPending }      from "./plugins/rps.js"
 import { pendingMode as scramblePending } from "./plugins/scramble.js"
 import { pendingMode as quizPending }     from "./plugins/quiz.js"
 
-import { isSudo, isOwner, OWNER_NUMBER } from "./sudo.js"
+import { isSudo, isOwner, bareNumber, OWNER_NUMBER } from "./sudo.js"
 
 console.log("🚀 Starting WhatsApp bot...")
+console.log(`👑 Owner number: ${OWNER_NUMBER}`)
 
 process.on("uncaughtException", (err) => {
     console.error("❌ Uncaught Exception:", err.message)
@@ -35,14 +36,15 @@ let reconnectAttempts = 0
 const MAX_RECONNECT   = 5
 let isReady           = false
 
-function isGroup(message)  { return message.from.endsWith("@g.us") }
+function isGroup(message) { return message.from.endsWith("@g.us") }
 
 function getSender(message) {
-    // For group messages: message.author is the sender's JID
-    // For DMs: message.from is the sender's JID
-    // For bot's own messages (fromMe): use the owner number
+    // fromMe = message sent by the bot's own number
     if (message.fromMe) return `${OWNER_NUMBER}@c.us`
-    return message.author || message.from
+    // Group message: author is the sender's JID (e.g. 918088900966@c.us)
+    if (message.author) return message.author
+    // DM: from is the sender's JID
+    return message.from
 }
 
 const client = new Client({
@@ -107,16 +109,18 @@ client.on("message", async (message) => {
 
     if (!isReady || !message.body) return
 
-    // Bot's own messages: only process if sent by owner number
-    if (message.fromMe && !isOwner(`${OWNER_NUMBER}@c.us`)) return
+    // Block bot's own messages UNLESS it's a command (fromMe = owner typing)
+    if (message.fromMe && !message.body.trim().startsWith(".")) return
 
     const chat   = message.from
     const sender = getSender(message)
+    const senderNum = bareNumber(sender)
     const group  = isGroup(message)
     const body   = message.body.trim()
     const isCmd  = body.startsWith(".")
 
-    console.log(`📨 [${new Date().toTimeString().slice(0,8)}] [${group?"GROUP":"DM"}] [${message.fromMe?"BOT":"USER"}] → ${body.slice(0,60)}`)
+    // Debug log — shows exact sender number so you can verify
+    console.log(`📨 [${new Date().toTimeString().slice(0,8)}] [${group?"GROUP":"DM"}] [${message.fromMe?"BOT":"USER"}] [${senderNum}] → ${body.slice(0,60)}`)
 
     registerUser(message)
 
@@ -177,7 +181,7 @@ client.on("message", async (message) => {
     const args    = body.slice(1).trim().split(/ +/)
     const command = args.shift().toLowerCase()
 
-    console.log(`⚙️ .${command} | ${args.join(", ")||"none"} | ${group?"GROUP":"DM"}`)
+    console.log(`⚙️ [${senderNum}] .${command} | ${args.join(", ")||"none"} | ${group?"GROUP":"DM"} | owner=${isOwner(sender)} sudo=${isSudo(sender)}`)
 
     if(command === "ping")   return message.reply("🏓 Pong! Bot is online.")
     if(command === "users")  return message.reply(getUserSummary())
@@ -230,7 +234,10 @@ client.on("message", async (message) => {
     // Owner-only commands
     const OWNER_ONLY_COMMANDS = ["addsudo", "removesudo", "announce"]
     if(OWNER_ONLY_COMMANDS.includes(resolved) && !isOwner(sender)){
-        return message.reply("🚫 Only the *bot owner* can use this command.")
+        return message.reply(
+            `🚫 Only the *bot owner* can use this command.\n\n` +
+            `_Debug: your number is ${senderNum}_`
+        )
     }
 
     // Sudo-only commands
@@ -240,8 +247,8 @@ client.on("message", async (message) => {
     ]
     if(SUDO_ONLY_COMMANDS.includes(resolved) && !isSudo(sender)){
         return message.reply(
-            "🚫 You don't have permission to use this command.\n\n" +
-            "_Sudo-only: .tagall .botleave .botjoin .forward .promote .kick .mute .unmute_"
+            `🚫 You don't have permission to use this command.\n\n` +
+            `_Debug: your number is ${senderNum}_`
         )
     }
 
