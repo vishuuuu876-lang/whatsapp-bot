@@ -18,8 +18,7 @@ import { pendingMode as rpsPending }      from "./plugins/rps.js"
 import { pendingMode as scramblePending } from "./plugins/scramble.js"
 import { pendingMode as quizPending }     from "./plugins/quiz.js"
 
-// ── CHANGE 1: sudo import ─────────────────────────────────────
-import { isSudo, isOwner } from "./sudo.js"
+import { isSudo, isOwner, OWNER_NUMBER } from "./sudo.js"
 
 console.log("🚀 Starting WhatsApp bot...")
 
@@ -37,7 +36,14 @@ const MAX_RECONNECT   = 5
 let isReady           = false
 
 function isGroup(message)  { return message.from.endsWith("@g.us") }
-function getSender(message){ return message.author || message.from }
+
+function getSender(message) {
+    // For group messages: message.author is the sender's JID
+    // For DMs: message.from is the sender's JID
+    // For bot's own messages (fromMe): use the owner number
+    if (message.fromMe) return `${OWNER_NUMBER}@c.us`
+    return message.author || message.from
+}
 
 const client = new Client({
     authStrategy: new LocalAuth({ clientId: "main-session" }),
@@ -101,22 +107,20 @@ client.on("message", async (message) => {
 
     if (!isReady || !message.body) return
 
-    // ✅ Normalize sender correctly
-    const sender = (message.author || message.from || "").toString()
-
-    // ✅ Allow bot messages ONLY if owner
-    if (message.fromMe && !isOwner(sender)) return
+    // Bot's own messages: only process if sent by owner number
+    if (message.fromMe && !isOwner(`${OWNER_NUMBER}@c.us`)) return
 
     const chat   = message.from
-    const group  = chat.endsWith("@g.us")
+    const sender = getSender(message)
+    const group  = isGroup(message)
     const body   = message.body.trim()
     const isCmd  = body.startsWith(".")
 
-    console.log(`📨 [${new Date().toTimeString().slice(0,8)}] [${group?"GROUP":"DM"}] → ${body.slice(0,60)}`)
+    console.log(`📨 [${new Date().toTimeString().slice(0,8)}] [${group?"GROUP":"DM"}] [${message.fromMe?"BOT":"USER"}] → ${body.slice(0,60)}`)
 
     registerUser(message)
 
-    /* GAME PENDING MODES — must come before info/business */
+    /* GAME PENDING MODES */
     if(!isCmd){
         if(rpsPending[chat]){
             try{ const p = await import("./plugins/rps.js"); await p.default(client, message, []) }
@@ -213,37 +217,31 @@ client.on("message", async (message) => {
         return message.reply(`🎮 ${gd.type} | 👥 ${gd.players.length} | ▶ ${gd.started}`)
     }
 
-    // ── CHANGE 2: updated aliases ─────────────────────────────
-    // ── CHANGE 2: updated aliases ─────────────────────────────
-const aliases = {
-    truth: "truthordare",
-    dare: "truthordare",
-    tod: "truthordare",
-    removesudo: "addsudo",   // handled inside addsudo.js
-    demote: "promote",       // handled inside promote.js
-    unmute: "mute"           // handled inside mute.js
-}
+    const aliases = {
+        truth:       "truthordare",
+        dare:        "truthordare",
+        tod:         "truthordare",
+        removesudo:  "addsudo",
+        demote:      "promote",
+        unmute:      "mute",
+    }
+    const resolved = aliases[command] || command
 
-const resolved = aliases[command] || command
+    // Owner-only commands
+    const OWNER_ONLY_COMMANDS = ["addsudo", "removesudo", "announce"]
+    if(OWNER_ONLY_COMMANDS.includes(resolved) && !isOwner(sender)){
+        return message.reply("🚫 Only the *bot owner* can use this command.")
+    }
 
-// ── OWNER ONLY COMMANDS ───────────────────────────────────
-const OWNER_ONLY_COMMANDS = ["addsudo", "removesudo"]
-
-if (OWNER_ONLY_COMMANDS.includes(resolved) && !isOwner(sender)) {
-    return message.reply("🚫 Only the *bot owner* can use this command.")
-}
-
-    // ── CHANGE 3: sudo guard ──────────────────────────────────
+    // Sudo-only commands
     const SUDO_ONLY_COMMANDS = [
         "tagall", "botleave", "botjoin", "forward",
-        "promote", "demote", "kick", "mute", "unmute",
-        "announce"
+        "promote", "demote", "kick", "mute", "unmute"
     ]
-
     if(SUDO_ONLY_COMMANDS.includes(resolved) && !isSudo(sender)){
         return message.reply(
             "🚫 You don't have permission to use this command.\n\n" +
-            "_Sudo-only: .tagall .botleave .botjoin .forward .promote .kick .mute .unmute .announce_"
+            "_Sudo-only: .tagall .botleave .botjoin .forward .promote .kick .mute .unmute_"
         )
     }
 
