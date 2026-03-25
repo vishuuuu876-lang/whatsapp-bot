@@ -18,6 +18,9 @@ import { pendingMode as rpsPending }      from "./plugins/rps.js"
 import { pendingMode as scramblePending } from "./plugins/scramble.js"
 import { pendingMode as quizPending }     from "./plugins/quiz.js"
 
+// ── CHANGE 1: sudo import ─────────────────────────────────────
+import { isSudo } from "./sudo.js"
+
 console.log("🚀 Starting WhatsApp bot...")
 
 process.on("uncaughtException", (err) => {
@@ -205,8 +208,30 @@ client.on("message", async (message) => {
         return message.reply(`🎮 ${gd.type} | 👥 ${gd.players.length} | ▶ ${gd.started}`)
     }
 
-    const aliases = { truth:"truthordare", dare:"truthordare", tod:"truthordare" }
+    // ── CHANGE 2: updated aliases ─────────────────────────────
+    const aliases = {
+        truth:       "truthordare",
+        dare:        "truthordare",
+        tod:         "truthordare",
+        removesudo:  "addsudo",     // .removesudo handled inside addsudo.js
+        demote:      "promote",     // .demote handled inside promote.js
+        unmute:      "mute",        // .unmute handled inside mute.js
+    }
     const resolved = aliases[command] || command
+
+    // ── CHANGE 3: sudo guard ──────────────────────────────────
+    const SUDO_ONLY_COMMANDS = [
+        "tagall", "botleave", "botjoin", "forward",
+        "promote", "demote", "kick", "mute", "unmute",
+        "announce", "addsudo", "removesudo"
+    ]
+
+    if(SUDO_ONLY_COMMANDS.includes(resolved) && !isSudo(sender)){
+        return message.reply(
+            "🚫 You don't have permission to use this command.\n\n" +
+            "_Sudo-only: .tagall .botleave .botjoin .forward .promote .kick .mute .unmute .announce_"
+        )
+    }
 
     try{
         const plugin = await import(`./plugins/${resolved}.js`)
