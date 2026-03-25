@@ -20,39 +20,49 @@
 //  using the same pattern as users.js.
 // =============================================================
 
-export const OWNER_NUMBER = "918088900966"   // ← CHANGE THIS to your number
+// =============================================================
+//  sudo.js  —  Central sudo / owner permission manager
+// =============================================================
+
+export const OWNER_NUMBER = "918088900966"   // ← your number (no +, no spaces)
 
 const sudoList = new Set()
 
-/** Strip @c.us / @g.us suffix and return bare number */
+/** Clean number: remove everything except digits */
 export function bareNumber(jid) {
-    return jid.replace(/@.+$/, "")
+    if (!jid) return ""
+    return jid.toString().replace(/[^0-9]/g, "")
 }
 
-/** Is this JID/number the hardcoded owner? */
+/** Check if this is owner */
 export function isOwner(jid) {
     return bareNumber(jid) === OWNER_NUMBER
 }
 
-/** Is this JID a sudo user? (owner always counts) */
+/** Check if this is sudo (owner always included) */
 export function isSudo(jid) {
     return isOwner(jid) || sudoList.has(bareNumber(jid))
 }
 
-/** Add a number to sudo. Returns false if already exists. */
+/** Add sudo user */
 export function addSudo(number) {
     const n = bareNumber(number)
+    if (!n) return false
     if (sudoList.has(n)) return false
+
     sudoList.add(n)
     return true
 }
 
-/** Remove a number from sudo. Returns false if not found. */
+/** Remove sudo user */
 export function removeSudo(number) {
-    return sudoList.delete(bareNumber(number))
+    const n = bareNumber(number)
+    if (!n) return false
+
+    return sudoList.delete(n)
 }
 
-/** Get all sudo members as array of bare numbers */
+/** Get all sudo users */
 export function getSudoList() {
     return [...sudoList]
 }
