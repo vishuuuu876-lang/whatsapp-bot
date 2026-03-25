@@ -32,35 +32,37 @@
 //  India (+91 98765 43210) → "919876543210"
 // =============================================================
 
-export const OWNER_NUMBER = "918088900966"   // ← your number, already set
+// =============================================================
+//  sudo.js  —  Central sudo / owner permission manager
+// =============================================================
 
-// Pre-loaded sudo list — these numbers always have sudo access
-// even after bot restarts. Add numbers here directly if needed.
+// ✅ Updated to match your actual WhatsApp JID from debug
+export const OWNER_NUMBER = "238740639359208"
+
 const sudoList = new Set([
     "265887329058",
     "6283830066179",
     "256701933458"
-    // add more numbers here if needed
 ])
 
-/** Strip everything except digits from a JID or number */
+/** Strip everything except digits */
 export function bareNumber(jid) {
     if (!jid) return ""
     return jid.toString().replace(/[^0-9]/g, "")
 }
 
-/** Is this JID/number the hardcoded owner? */
+/** Is this JID the owner? */
 export function isOwner(jid) {
     return bareNumber(jid) === OWNER_NUMBER
 }
 
-/** Is this JID/number a sudo user? Owner always counts as sudo. */
+/** Is this JID a sudo user? Owner always counts. */
 export function isSudo(jid) {
+    if (isOwner(jid)) return true
     const num = bareNumber(jid)
-    return num === OWNER_NUMBER || sudoList.has(num)
+    return sudoList.has(num)
 }
 
-/** Add a number to sudo list. Returns false if already present. */
 export function addSudo(number) {
     const n = bareNumber(number)
     if (!n || sudoList.has(n)) return false
@@ -68,14 +70,12 @@ export function addSudo(number) {
     return true
 }
 
-/** Remove a number from sudo list. Returns false if not found. */
 export function removeSudo(number) {
     const n = bareNumber(number)
     if (!n) return false
     return sudoList.delete(n)
 }
 
-/** Return all sudo members as array of bare numbers */
 export function getSudoList() {
     return [...sudoList]
 }
