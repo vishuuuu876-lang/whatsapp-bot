@@ -20,7 +20,7 @@
 //  using the same pattern as users.js.
 // =============================================================
 
-export const OWNER_NUMBER = "91XXXXXXXXXX"   // ← CHANGE THIS to your number
+export const OWNER_NUMBER = "918088900966"   // ← CHANGE THIS to your number
 
 const sudoList = new Set()
 
