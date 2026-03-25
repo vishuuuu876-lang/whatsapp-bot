@@ -19,7 +19,7 @@ import { pendingMode as scramblePending } from "./plugins/scramble.js"
 import { pendingMode as quizPending }     from "./plugins/quiz.js"
 
 // ── CHANGE 1: sudo import ─────────────────────────────────────
-import { isSudo } from "./sudo.js"
+import { isSudo, isOwner } from "./sudo.js"
 
 console.log("🚀 Starting WhatsApp bot...")
 
@@ -209,21 +209,30 @@ client.on("message", async (message) => {
     }
 
     // ── CHANGE 2: updated aliases ─────────────────────────────
-    const aliases = {
-        truth:       "truthordare",
-        dare:        "truthordare",
-        tod:         "truthordare",
-        removesudo:  "addsudo",     // .removesudo handled inside addsudo.js
-        demote:      "promote",     // .demote handled inside promote.js
-        unmute:      "mute",        // .unmute handled inside mute.js
-    }
-    const resolved = aliases[command] || command
+    // ── CHANGE 2: updated aliases ─────────────────────────────
+const aliases = {
+    truth: "truthordare",
+    dare: "truthordare",
+    tod: "truthordare",
+    removesudo: "addsudo",   // handled inside addsudo.js
+    demote: "promote",       // handled inside promote.js
+    unmute: "mute"           // handled inside mute.js
+}
+
+const resolved = aliases[command] || command
+
+// ── OWNER ONLY COMMANDS ───────────────────────────────────
+const OWNER_ONLY_COMMANDS = ["addsudo", "removesudo"]
+
+if (OWNER_ONLY_COMMANDS.includes(resolved) && !isOwner(sender)) {
+    return message.reply("🚫 Only the *bot owner* can use this command.")
+}
 
     // ── CHANGE 3: sudo guard ──────────────────────────────────
     const SUDO_ONLY_COMMANDS = [
         "tagall", "botleave", "botjoin", "forward",
         "promote", "demote", "kick", "mute", "unmute",
-        "announce", "addsudo", "removesudo"
+        "announce"
     ]
 
     if(SUDO_ONLY_COMMANDS.includes(resolved) && !isSudo(sender)){
