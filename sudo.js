@@ -24,7 +24,12 @@
 // 👉 Put YOUR number here (no +, no spaces)
 export const OWNER_NUMBER = "918088900966"
 
-const sudoList = new Set()
+const sudoList = new Set([
+    "918088900966",   // your number (owner)
+    "265887329058",   // the user you want to give sudo
+    "6283830066179",
+    "256701933458"
+])
 
 export function bareNumber(jid) {
     if (!jid) return ""
