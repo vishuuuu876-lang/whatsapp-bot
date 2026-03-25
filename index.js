@@ -99,13 +99,17 @@ client.on("disconnected", (reason) => {
 
 client.on("message", async (message) => {
 
-    if(!isReady || message.fromMe || !message.body) return
+    if (!isReady || !message.body) return
 
-    const chat   = message.from
     const sender = getSender(message)
-    const group  = isGroup(message)
-    const body   = message.body.trim()
-    const isCmd  = body.startsWith(".")
+
+    // Allow only owner to use commands from bot's own account
+    if (message.fromMe && !isOwner(sender)) return
+
+    const chat  = message.from
+    const group = isGroup(message)
+    const body  = message.body.trim()
+    const isCmd = body.startsWith(".")
 
     console.log(`📨 [${new Date().toTimeString().slice(0,8)}] [${group?"GROUP":"DM"}] → ${body.slice(0,60)}`)
 
