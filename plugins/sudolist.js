@@ -1,9 +1,4 @@
-// =============================================================
-//  plugins/sudolist.js
-//  Command: .sudolist — show all sudo members
-//  Access:  anyone
-// =============================================================
-
+// plugins/sudolist.js — .sudolist (anyone can use)
 import { getSudoList, OWNER_NUMBER } from "../sudo.js"
 
 export default async function sudolistPlugin(client, message, args) {
@@ -20,12 +15,12 @@ export default async function sudolistPlugin(client, message, args) {
             text += "\n"
         }
 
-        text += `_Sudo commands: .tagall .botleave .botjoin .forward .promote .kick .mute .unmute_`
+        text += `_Sudo commands: .tagall .botleave .botjoin .forward .promote .demote .kick .mute .unmute .antilink_`
 
         await message.reply(text)
 
     } catch (err) {
         console.error("❌ sudolist.js error:", err.message)
-        await message.reply("⚠️ Could not fetch sudo list.")
+        await message.reply(`⚠️ Failed: ${err.message}`)
     }
 }
