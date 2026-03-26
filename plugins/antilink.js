@@ -13,24 +13,29 @@
 //  Bot must be group admin for delete + kick to work.
 // =============================================================
 
+// plugins/antilink.js — .antilink on/off
 import { isSudo } from "../sudo.js"
 import { isGroup, getSender } from "../helpers.js"
 
-// In-memory store: { "groupJid": { enabled: true, warnings: { "senderJid": count } } }
 export const antilinkStore = {}
 
-// WhatsApp invite link patterns
 const LINK_PATTERNS = [
     /chat\.whatsapp\.com\/[A-Za-z0-9]{20,}/i,
     /whatsapp\.com\/invite\/[A-Za-z0-9]+/i,
 ]
 
+function toJidString(jid) {
+    if (!jid) return ""
+    if (typeof jid === "string") return jid
+    if (jid._serialized) return jid._serialized
+    if (jid.id?._serialized) return jid.id._serialized
+    return jid.toString()
+}
+
 function hasGroupLink(text) {
     return LINK_PATTERNS.some(p => p.test(text))
 }
 
-// ── This is called from index.js for every non-command message ──
-// Export so index.js can call it before command processing
 export async function checkAntilink(client, message) {
     try {
         if (!isGroup(message)) return false
@@ -42,49 +47,39 @@ export async function checkAntilink(client, message) {
         const body = message.body || ""
         if (!hasGroupLink(body)) return false
 
-        const sender     = getSender(message)
-        const groupChat  = await message.getChat()
+        const sender    = getSender(message)
+        const groupChat = await message.getChat()
 
         // Admins are exempt
-        const senderMember = groupChat.participants.find(p => p.id._serialized === sender)
+        const senderMember = groupChat.participants.find(p => toJidString(p.id) === sender)
         if (senderMember?.isAdmin || senderMember?.isSuperAdmin) return false
 
-        // Initialize warnings
         if (!config.warnings[sender]) config.warnings[sender] = 0
         config.warnings[sender]++
 
         const warnings  = config.warnings[sender]
-        const name      = message.author
-            ? `@${sender.replace(/[^0-9]/g, "")}`
-            : "You"
+        const senderNum = sender.replace(/[^0-9]/g, "")
 
         // Try to delete the message
         try { await message.delete(true) } catch {}
 
         if (warnings >= 3) {
-            // Kick on 3rd warning
             config.warnings[sender] = 0
             try {
                 await groupChat.removeParticipants([sender])
                 await client.sendMessage(chat,
-                    `🚫 *AntiLink*\n\n` +
-                    `${name} was kicked for repeatedly sharing group links.\n` +
-                    `_(3/3 warnings)_`,
+                    `🚫 *AntiLink*\n\n@${senderNum} was kicked for repeatedly sharing group links.\n_(3/3 warnings)_`,
                     { mentions: [sender] }
                 )
             } catch {
                 await client.sendMessage(chat,
-                    `⚠️ *AntiLink*\n\n` +
-                    `${name} sent a group link and has been warned 3 times.\n` +
-                    `_I need admin rights to kick them._`,
+                    `⚠️ *AntiLink*\n\n@${senderNum} sent a group link and has been warned 3 times.\n_Make me admin to kick them._`,
                     { mentions: [sender] }
                 )
             }
         } else {
             await client.sendMessage(chat,
-                `⚠️ *AntiLink Warning ${warnings}/3*\n\n` +
-                `${name} group links are not allowed here!\n` +
-                `_${3 - warnings} more warning(s) before kick._`,
+                `⚠️ *AntiLink Warning ${warnings}/3*\n\n@${senderNum} group links are not allowed!\n_${3 - warnings} more warning(s) before kick._`,
                 { mentions: [sender] }
             )
         }
@@ -97,23 +92,15 @@ export async function checkAntilink(client, message) {
     }
 }
 
-// ── Command handler: .antilink on/off ────────────────────────
 export default async function antilinkPlugin(client, message, args) {
     try {
         const sender = getSender(message)
-
-        if (!isSudo(sender)) {
-            return message.reply("🚫 Only *sudo members* can use .antilink")
-        }
-
-        if (!isGroup(message)) {
-            return message.reply("❌ This command only works in groups.")
-        }
+        if (!isSudo(sender)) return message.reply("🚫 Only *sudo members* can use .antilink")
+        if (!isGroup(message)) return message.reply("❌ This command only works in groups.")
 
         const chat   = message.from
         const toggle = (args[0] || "").toLowerCase()
 
-        // Show status if no argument
         if (!toggle) {
             const status = antilinkStore[chat]?.enabled ? "🟢 ON" : "🔴 OFF"
             return message.reply(
@@ -150,6 +137,6 @@ export default async function antilinkPlugin(client, message, args) {
 
     } catch (err) {
         console.error("❌ antilink.js error:", err.message)
-        await message.reply("⚠️ Something went wrong.")
+        await message.reply(`⚠️ Failed: ${err.message}`)
     }
 }
