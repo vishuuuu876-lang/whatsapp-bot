@@ -5,16 +5,22 @@
 //  Usage:   Reply to any message → type .forward @contact
 // =============================================================
 
+// plugins/forward.js — reply to a message + .forward @contact
 import { isSudo } from "../sudo.js"
 import { getSender } from "../helpers.js"
+
+function toJidString(jid) {
+    if (!jid) return ""
+    if (typeof jid === "string") return jid
+    if (jid._serialized) return jid._serialized
+    if (jid.id?._serialized) return jid.id._serialized
+    return jid.toString()
+}
 
 export default async function forwardPlugin(client, message, args) {
     try {
         const sender = getSender(message)
-
-        if (!isSudo(sender)) {
-            return message.reply("🚫 Only *sudo members* can use .forward")
-        }
+        if (!isSudo(sender)) return message.reply("🚫 Only *sudo members* can use .forward")
 
         const quotedMsg = await message.getQuotedMessage().catch(() => null)
         if (!quotedMsg) {
@@ -28,21 +34,18 @@ export default async function forwardPlugin(client, message, args) {
 
         const mentions = await message.getMentions()
         if (!mentions.length) {
-            return message.reply(
-                "⚠️ Please @mention the person to forward to.\n\n" +
-                "_Example: `.forward @919876543210`_"
-            )
+            return message.reply("⚠️ Please @mention the person to forward to.\n\n_Example: `.forward @919876543210`_")
         }
 
         const target     = mentions[0]
-        const targetJid  = target.id._serialized
-        const targetName = target.pushname || target.id.user
+        const targetJid  = toJidString(target.id)
+        const targetName = target.pushname || targetJid.split("@")[0]
 
         await quotedMsg.forward(targetJid)
         await message.reply(`✅ Message forwarded to *${targetName}*`)
 
     } catch (err) {
         console.error("❌ forward.js error:", err.message)
-        await message.reply("⚠️ Failed to forward the message.")
+        await message.reply(`⚠️ Failed: ${err.message}`)
     }
 }
