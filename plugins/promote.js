@@ -22,8 +22,25 @@
 //  Fixed:   uses correct method names for whatsapp-web.js 1.23.0
 // =============================================================
 
+// =============================================================
+//  plugins/promote.js
+//  Commands:
+//    .promote @member  — promote to WhatsApp group admin
+//    .demote  @member  — remove admin role
+//  Access:  sudo only | group only | bot must be group admin
+// =============================================================
+
 import { isSudo } from "../sudo.js"
 import { isGroup, getSender } from "../helpers.js"
+
+/** Safely convert any JID format to a plain string */
+function toJidString(jid) {
+    if (!jid) return ""
+    if (typeof jid === "string") return jid
+    if (jid._serialized) return jid._serialized
+    if (jid.id?._serialized) return jid.id._serialized
+    return jid.toString()
+}
 
 export default async function promotePlugin(client, message, args) {
     try {
@@ -50,8 +67,8 @@ export default async function promotePlugin(client, message, args) {
         const chat = await message.getChat()
 
         // Check bot is a group admin
-        const botId     = client.info.wid._serialized
-        const botMember = chat.participants.find(p => p.id._serialized === botId)
+        const botJid    = toJidString(client.info.wid)
+        const botMember = chat.participants.find(p => toJidString(p.id) === botJid)
 
         if (!botMember?.isAdmin && !botMember?.isSuperAdmin) {
             return message.reply(
@@ -62,11 +79,13 @@ export default async function promotePlugin(client, message, args) {
 
         const isDemote   = message.body.trim().toLowerCase().startsWith(".demote")
         const target     = mentions[0]
-        const targetJid  = target.id._serialized
-        const targetName = target.pushname || target.id.user
+        // Safely extract JID string
+        const targetJid  = toJidString(target.id)
+        const targetNum  = targetJid.split("@")[0]
+        const targetName = target.pushname || targetNum
 
         // Check target is in the group
-        const targetMember = chat.participants.find(p => p.id._serialized === targetJid)
+        const targetMember = chat.participants.find(p => toJidString(p.id) === targetJid)
         if (!targetMember) {
             return message.reply(`❌ *${targetName}* is not in this group.`)
         }
@@ -75,28 +94,38 @@ export default async function promotePlugin(client, message, args) {
             if (!targetMember.isAdmin && !targetMember.isSuperAdmin) {
                 return message.reply(`⚠️ *${targetName}* is not an admin.`)
             }
-            // Try both method names — 1.23.0 uses demoteParticipants
+            // Try all known method names across versions
             if (typeof chat.demoteParticipants === "function") {
                 await chat.demoteParticipants([targetJid])
             } else if (typeof chat.revokeParticipantsAdmin === "function") {
                 await chat.revokeParticipantsAdmin([targetJid])
             } else {
-                return message.reply("❌ This version of whatsapp-web.js doesn't support demote.")
+                return message.reply("❌ Demote not supported in this version.")
             }
-            await message.reply(`⬇️ *${targetName}* has been demoted from admin.`, { mentions: [targetJid] })
+            await message.reply(
+                `⬇️ *${targetName}* has been demoted from admin.\n\n` +
+                `👑 *Demoted by:* @${sender.split("@")[0]}\n` +
+                `📅 ${new Date().toLocaleString()}`,
+                { mentions: [targetJid, sender] }
+            )
         } else {
             if (targetMember.isAdmin || targetMember.isSuperAdmin) {
                 return message.reply(`⚠️ *${targetName}* is already an admin.`)
             }
-            // Try both method names — 1.23.0 uses promoteParticipants
+            // Try all known method names across versions
             if (typeof chat.promoteParticipants === "function") {
                 await chat.promoteParticipants([targetJid])
             } else if (typeof chat.makeParticipantsAdmins === "function") {
                 await chat.makeParticipantsAdmins([targetJid])
             } else {
-                return message.reply("❌ This version of whatsapp-web.js doesn't support promote.")
+                return message.reply("❌ Promote not supported in this version.")
             }
-            await message.reply(`⬆️ *${targetName}* has been promoted to admin! 🎉`, { mentions: [targetJid] })
+            await message.reply(
+                `⬆️ *${targetName}* has been promoted to admin! 🎉\n\n` +
+                `👑 *Promoted by:* @${sender.split("@")[0]}\n` +
+                `📅 ${new Date().toLocaleString()}`,
+                { mentions: [targetJid, sender] }
+            )
         }
 
     } catch (err) {
