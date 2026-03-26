@@ -4,16 +4,14 @@
 //  Access:  owner only — sends to ALL groups bot is in
 // =============================================================
 
+// plugins/announce.js — .announce <message> (owner only)
 import { isOwner } from "../sudo.js"
 import { getSender } from "../helpers.js"
 
 export default async function announcePlugin(client, message, args) {
     try {
         const sender = getSender(message)
-
-        if (!isOwner(sender)) {
-            return message.reply("🚫 Only the *bot owner* can use .announce")
-        }
+        if (!isOwner(sender)) return message.reply("🚫 Only the *bot owner* can use .announce")
 
         const text = args.join(" ").trim()
         if (!text) {
@@ -26,9 +24,7 @@ export default async function announcePlugin(client, message, args) {
         const chats  = await client.getChats()
         const groups = chats.filter(c => c.isGroup)
 
-        if (!groups.length) {
-            return message.reply("❌ Bot is not in any groups.")
-        }
+        if (!groups.length) return message.reply("❌ Bot is not in any groups.")
 
         await message.reply(`📢 Sending to *${groups.length}* group(s)... please wait.`)
 
@@ -40,7 +36,6 @@ export default async function announcePlugin(client, message, args) {
             `_— Bot Owner_`
 
         let sent = 0, failed = 0
-
         for (const group of groups) {
             try {
                 await client.sendMessage(group.id._serialized, announceText)
@@ -56,6 +51,6 @@ export default async function announcePlugin(client, message, args) {
 
     } catch (err) {
         console.error("❌ announce.js error:", err.message)
-        await message.reply("⚠️ Announcement failed.")
+        await message.reply(`⚠️ Failed: ${err.message}`)
     }
 }
