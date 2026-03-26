@@ -36,8 +36,11 @@
 //  sudo.js  —  Central sudo / owner permission manager
 // =============================================================
 
-// ✅ Updated to match your actual WhatsApp JID from debug
-export const OWNER_NUMBER = "238740639359208"
+// =============================================================
+//  sudo.js  —  Central sudo / owner permission manager
+// =============================================================
+
+export const OWNER_NUMBER = "238740639359208"  // ← exact debug value
 
 const sudoList = new Set([
     "265887329058",
@@ -48,34 +51,66 @@ const sudoList = new Set([
 /** Strip everything except digits */
 export function bareNumber(jid) {
     if (!jid) return ""
+    if (typeof jid === "object") {
+        jid = jid._serialized || jid.id?._serialized || jid.toString()
+    }
     return jid.toString().replace(/[^0-9]/g, "")
+}
+
+/** Compare two JIDs by their last 10 digits — handles all format variations */
+function matchesNumber(jid, stored) {
+    const a = bareNumber(jid)
+    const b = bareNumber(stored)
+    if (!a || !b) return false
+    // Exact match
+    if (a === b) return true
+    // Match by last 10 digits (handles country code variations)
+    const len = Math.min(a.length, b.length, 10)
+    return a.slice(-len) === b.slice(-len)
 }
 
 /** Is this JID the owner? */
 export function isOwner(jid) {
-    return bareNumber(jid) === OWNER_NUMBER
+    return matchesNumber(jid, OWNER_NUMBER)
 }
 
 /** Is this JID a sudo user? Owner always counts. */
 export function isSudo(jid) {
     if (isOwner(jid)) return true
-    const num = bareNumber(jid)
-    return sudoList.has(num)
+    // Check against every number in sudoList using flexible matching
+    for (const stored of sudoList) {
+        if (matchesNumber(jid, stored)) return true
+    }
+    return false
 }
 
+/** Add a number to sudo list */
 export function addSudo(number) {
     const n = bareNumber(number)
-    if (!n || sudoList.has(n)) return false
+    if (!n) return false
+    // Don't add if already matches something in the list
+    for (const stored of sudoList) {
+        if (matchesNumber(n, stored)) return false
+    }
     sudoList.add(n)
     return true
 }
 
+/** Remove a number from sudo list */
 export function removeSudo(number) {
     const n = bareNumber(number)
     if (!n) return false
-    return sudoList.delete(n)
+    // Find and remove matching entry
+    for (const stored of sudoList) {
+        if (matchesNumber(n, stored)) {
+            sudoList.delete(stored)
+            return true
+        }
+    }
+    return false
 }
 
+/** Return all sudo members as array of bare numbers */
 export function getSudoList() {
     return [...sudoList]
 }
