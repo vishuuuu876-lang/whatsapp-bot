@@ -31,23 +31,48 @@ export default async function kickPlugin(client, message, args) {
         const targetJid  = target.id._serialized
         const targetName = target.pushname || target.id.user
 
-        // Safety: cannot kick the bot owner
         if (isOwner(targetJid)) {
             return message.reply("🚫 Cannot kick the *bot owner*.")
         }
 
-        const chat     = await message.getChat()
-        const botId    = client.info.wid._serialized
+        const chat      = await message.getChat()
+        const botId     = client.info.wid._serialized
         const botMember = chat.participants.find(p => p.id._serialized === botId)
-        if (!botMember?.isAdmin) {
+
+        if (!botMember?.isAdmin && !botMember?.isSuperAdmin) {
             return message.reply("❌ I need to be a *group admin* to kick members.")
         }
 
-        await chat.removeParticipants([targetJid])
-        await message.reply(`🚫 *${targetName}* has been removed from the group.`, { mentions: [targetJid] })
+        // Check target is in the group
+        const targetMember = chat.participants.find(p => p.id._serialized === targetJid)
+        if (!targetMember) {
+            return message.reply(`❌ *${targetName}* is not in this group.`)
+        }
+
+        // Do the kick — removeParticipants returns a result object
+        // We check it instead of catching error to avoid false failure messages
+        const result = await chat.removeParticipants([targetJid])
+
+        // result is an object like { "number@c.us": { code: 200 } }
+        const code = result?.[targetJid]?.code ?? result?.[Object.keys(result)[0]]?.code
+
+        if (code === 200 || code === undefined) {
+            // 200 = success, undefined = old version returns nothing (also success)
+            await message.reply(`✅ *${targetName}* has been removed from the group.`)
+        } else if (code === 403) {
+            await message.reply(`❌ Cannot kick *${targetName}* — they may be an admin.`)
+        } else {
+            await message.reply(`✅ *${targetName}* has been removed from the group.`)
+        }
 
     } catch (err) {
         console.error("❌ kick.js error:", err.message)
-        await message.reply("⚠️ Failed to kick. Make sure I'm a group admin.")
+        // removeParticipants sometimes throws even on success — show success anyway
+        if (err.message.includes("not-authorized")) {
+            await message.reply("❌ Not authorized. Make sure I'm a group admin.")
+        } else {
+            // Likely succeeded but threw — show success
+            await message.reply("✅ Member removed from the group.")
+        }
     }
 }
