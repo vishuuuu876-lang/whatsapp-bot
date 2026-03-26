@@ -30,6 +30,14 @@
 //  Access:  sudo only | group only | bot must be group admin
 // =============================================================
 
+// =============================================================
+//  plugins/promote.js
+//  Commands:
+//    .promote @member  — promote to WhatsApp group admin
+//    .demote  @member  — remove admin role
+//  Access:  sudo only | group only | bot must be group admin
+// =============================================================
+
 import { isSudo } from "../sudo.js"
 import { isGroup, getSender } from "../helpers.js"
 
